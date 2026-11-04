@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.private/
+.wrangler/
+.env*
+.dev.vars*
+!.env.example
+*.log

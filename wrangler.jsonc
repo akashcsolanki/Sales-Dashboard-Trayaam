@@ -1,0 +1,12 @@
+{
+  "name": "trayaam-sales-office",
+  "pages_build_output_dir": "dist",
+  "compatibility_date": "2026-11-04",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "trayaam-sales-office",
+      "database_id": "220286cb-124a-40bf-8140-2f7f46ead21b",
+    },
+  ],
+}
