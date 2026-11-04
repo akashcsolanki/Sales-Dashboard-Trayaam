@@ -1,3 +1,4 @@
+import { identityAt } from "./office/identities.js";
 export const STAGES = [
   "Not contacted",
   "Researching",
@@ -152,14 +153,14 @@ export const ROLES = [
     "Retention",
   ],
 ];
-export const EMPLOYEES = ROLES.flatMap(([role, title, mission, team]) =>
+export const EMPLOYEES = ROLES.flatMap(([role, title, mission, team], roleIndex) =>
   Array.from({ length: 4 }, (_, i) => ({
     id: `${role}-${i + 1}`,
     role,
     title,
     mission,
     team,
-    name: `${title} ${String(i + 1).padStart(2, "0")}`,
+    ...identityAt(roleIndex * 4 + i),
   })),
 );
 export function metrics(prospects, events = []) {

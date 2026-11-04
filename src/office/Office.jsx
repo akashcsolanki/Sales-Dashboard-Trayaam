@@ -44,7 +44,12 @@ import {
   HAIRS,
   actualStatus,
 } from "./config";
+import { portraitStyle } from "./identities";
+import { DEPARTMENTS, PLATFORMS, roomInfo, membersFor, makeRoom, employeePlatform } from "./workspaces";
 import "./office.css";
+function Portrait({employee, large=false}) {
+  return <span role="img" aria-label={employee.name + " character reference"} className={"cast-portrait"+(large?" large":"")} style={portraitStyle(employee.portrait)} />;
+}
 const catalog = [
   ["select", "Select & move", MousePointer2],
   ["desk", "Workstation", Monitor],
@@ -55,6 +60,9 @@ const catalog = [
   ["partition", "Partition", Building2],
   ["bookshelf", "Bookcase", BriefcaseBusiness],
   ["art", "Sculpture", Palette],
+  ["booth", "Acoustic pod", Monitor],
+  ["whiteboard", "Idea board", Palette],
+  ["server", "Data cabinet", Building2],
 ];
 const roleLabel = (id) => ROLES.find((r) => r[0] === id)?.[1] || id;
 function Swatches({ label, options, value, onChange }) {
@@ -84,7 +92,10 @@ function Swatches({ label, options, value, onChange }) {
   );
 }
 export default function Office({ tasks, create, changeTask }) {
-  const [team, setTeam] = useState("Data lab"),
+  const [roomKey, setRoomKey] = useState("dept-data-lab"),
+    [directory, setDirectory] = useState("departments"),
+    [showReferences, setShowReferences] = useState(false),
+    [allTasks, setAllTasks] = useState(false),
     [wing, setWing] = useState(0),
     [mode, setMode] = useState("live"),
     [config, setConfig] = useState(defaultOffice),
@@ -104,16 +115,31 @@ export default function Office({ tasks, create, changeTask }) {
   const host = useRef(),
     engine = useRef(),
     state = useRef(),
-    cameraState = useRef(null);
-  state.current = { config, tool, selectedObject, selectedId };
-  const teamEmployees = useMemo(
-    () => EMPLOYEES.filter((e) => e.team === team),
-    [team],
-  );
-  const employees = useMemo(
-    () => teamEmployees.slice(wing * 16, wing * 16 + 16),
-    [teamEmployees, wing],
-  );
+    cameraState = useRef({}),
+    roomAnchor = useRef();
+  const info = roomInfo(roomKey);
+  const team = info.team || info.name;
+  state.current = { config, tool, selectedObject, selectedId, roomKey };
+  const teamEmployees = useMemo(() => membersFor(roomKey, config), [roomKey, config.employees]);
+  const employees = useMemo(() => teamEmployees.slice(wing * 16, wing * 16 + 16), [teamEmployees, wing]);
+  const room = config.rooms?.[roomKey] || makeRoom(roomKey, teamEmployees.length);
+  const sceneConfig = {...config, ...room, room:info};
+  const roomTasks = tasks.filter(t => teamEmployees.some(e => e.id === t.agentId));
+  function mutateRoom(fn, key=roomKey) {
+    setConfig(c => ({...c, rooms: {...c.rooms, [key]: fn(c.rooms?.[key] || makeRoom(key, membersFor(key,c).length))}}));
+    setDirty(true);
+  }
+  function captureRoom() {
+    engine.current?.flushPositions();
+  }
+  function changeRoom(key, enter=false) {
+    if(enter) requestAnimationFrame(()=>roomAnchor.current?.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'start'}));
+    if(key === roomKey) return;
+    captureRoom();
+    setRoomKey(key); setWing(0); setSelectedObject(null);
+    const first=membersFor(key,state.current.config)[0];
+    if(first) setSelectedId(first.id);
+  }
   const selected = EMPLOYEES.find((e) => e.id === selectedId) || employees[0];
   const style = {
     ...employeeStyle(selected.id),
@@ -148,7 +174,7 @@ export default function Office({ tasks, create, changeTask }) {
     config.lighting,
     config.floor,
     config.wall,
-    config.objects,
+    roomKey, room.objects,
     Object.entries(config.employees).map(
       ([id, { displayName, ...appearance }]) => [id, appearance],
     ),
@@ -180,8 +206,12 @@ export default function Office({ tasks, create, changeTask }) {
   function chooseEmployee(id) {
     const employee = EMPLOYEES.find((e) => e.id === id);
     if (employee) {
-      if (employee.team !== team) setTeam(employee.team);
-      const teamMembers = EMPLOYEES.filter((e) => e.team === employee.team);
+      let teamMembers = membersFor(roomKey, state.current.config);
+      if (!teamMembers.some(e=>e.id===id)) {
+        const destination=DEPARTMENTS.find(d=>d.team===employee.team).id;
+        captureRoom(); setRoomKey(destination);
+        teamMembers=membersFor(destination,state.current.config);
+      }
       setWing(Math.floor(teamMembers.findIndex((e) => e.id === id) / 16));
       setSelectedId(id);
       setPanel("employee");
@@ -191,18 +221,13 @@ export default function Office({ tasks, create, changeTask }) {
     const s = state.current;
     if (s.tool === "select") {
       if (s.selectedObject) {
-        setConfig((c) => ({
-          ...c,
-          objects: c.objects.map((o) =>
-            o.id === s.selectedObject ? { ...o, ...position } : o,
-          ),
-        }));
+        mutateRoom(r=>({...r,objects:r.objects.map(o=>o.id===s.selectedObject?{...o,...position}:o)}),s.roomKey);
         setDirty(true);
       }
       return;
     }
-    if (s.config.objects.length >= 300) {
-      setMessage("Office limit: 300 furniture items.");
+    if ((s.config.rooms?.[s.roomKey]?.objects.length || room.objects.length) >= 80) {
+      setMessage("Room limit: 80 furniture items.");
       return;
     }
     const object = {
@@ -217,7 +242,7 @@ export default function Office({ tasks, create, changeTask }) {
             ? "#c8bba2"
             : "#a88c64",
     };
-    setConfig((c) => ({ ...c, objects: [...c.objects, object] }));
+    mutateRoom(r=>({...r,objects:[...r.objects,object]}),s.roomKey);
     setSelectedObject(object.id);
     setDirty(true);
   };
@@ -227,7 +252,7 @@ export default function Office({ tasks, create, changeTask }) {
       setError("");
       engine.current = createOfficeEngine(host.current, {
         employees,
-        config,
+        config: sceneConfig,
         selectedId: state.current.selectedId,
         playing,
         mode,
@@ -239,15 +264,11 @@ export default function Office({ tasks, create, changeTask }) {
         },
         onPlace: place,
         onMove: (id, pos) => {
-          setConfig((c) => ({
-            ...c,
-            positions: { ...c.positions, [id]: pos },
-          }));
-          setDirty(true);
+          mutateRoom(r=>({...r,positions:{...r.positions,[id]:pos}}));
         },
       });
-      if (cameraState.current)
-        engine.current.restoreCamera(cameraState.current);
+      if (cameraState.current[roomKey])
+        engine.current.restoreCamera(cameraState.current[roomKey]);
     } catch (e) {
       setError(
         "3D rendering could not start. Use the employee roster below. " +
@@ -255,11 +276,11 @@ export default function Office({ tasks, create, changeTask }) {
       );
     }
     return () => {
-      cameraState.current = engine.current?.getCamera() || cameraState.current;
+      cameraState.current[roomKey] = engine.current?.getCamera() || cameraState.current[roomKey];
       engine.current?.dispose();
       engine.current = null;
     };
-  }, [ready, team, wing, visualKey]);
+  }, [ready, roomKey, wing, visualKey]);
   useEffect(() => {
     engine.current?.select(selectedId);
   }, [selectedId]);
@@ -273,10 +294,7 @@ export default function Office({ tasks, create, changeTask }) {
     if (saving || !ready) return;
     const sentConfig = {
       ...state.current.config,
-      positions: {
-        ...state.current.config.positions,
-        ...engine.current?.getPositions(),
-      },
+      rooms: {...state.current.config.rooms, [roomKey]: {...room, positions:{...room.positions,...engine.current?.getPositions()}}},
     };
     setConfig(sentConfig);
     state.current.config = sentConfig;
@@ -301,29 +319,27 @@ export default function Office({ tasks, create, changeTask }) {
       setSaving(false);
     }
   }
-  function changeTeam(value) {
-    setTeam(value);
-    setWing(0);
-    setSelectedId(EMPLOYEES.find((e) => e.team === value).id);
-    setSelectedObject(null);
-  }
-  function editObject(patch) {
-    setConfig((c) => ({
-      ...c,
-      objects: c.objects.map((o) =>
-        o.id === selectedObject ? { ...o, ...patch } : o,
-      ),
-    }));
-    setDirty(true);
-  }
-  const object = config.objects.find((o) => o.id === selectedObject);
+  function changeTeam(value) { changeRoom(DEPARTMENTS.find(d=>d.team===value).id); }
+  function editObject(patch) { mutateRoom(r=>({...r,objects:r.objects.map(o=>o.id===selectedObject?{...o,...patch}:o)})); }
+  const object = room.objects.find(o=>o.id===selectedObject);
   return (
     <div className="office-v2">
-      <div className="studio-topline">
+      <section className="hq-directory" aria-label="Office departments and platforms">
+        <div className="hq-directory-heading"><div><span className="studio-tag">A PLACE FOR EVERY SPECIALTY</span><h2>One company. Distinct worlds.</h2><p>Meet the people, enter their department, or organize the floor by platform.</p></div><button className="studio-button" onClick={()=>setShowReferences(!showReferences)}><Palette size={15}/>{showReferences?"Close art direction":"Character & office references"}</button></div>
+        <div className="hq-directory-tabs" role="group" aria-label="Browse office by"><button aria-pressed={directory==='departments'} onClick={()=>setDirectory('departments')}><Building2 size={15}/>Departments <span>08</span></button><button aria-pressed={directory==='platforms'} onClick={()=>setDirectory('platforms')}><Monitor size={15}/>Platforms <span>08</span></button><small>128 unique colleagues · 32 specialties</small></div>
+        <div className="hq-room-grid">{(directory==='departments'?DEPARTMENTS:PLATFORMS).map((entry,i)=>{
+          const key=directory==='departments'?entry.id:'platform-'+entry.id;
+          const members=membersFor(key,config), workload=tasks.filter(t=>members.some(e=>e.id===t.agentId)&&!['Done','Cancelled'].includes(t.status));
+          const available=members.filter(e=>!workload.some(t=>t.agentId===e.id)).length;
+          return <button key={key} aria-label={'Enter '+(entry.team||entry.name)} aria-pressed={roomKey===key} onClick={()=>changeRoom(key,true)} className="hq-room-card" style={{'--room-accent':entry.accent}}><div className={'room-miniature '+entry.kind}><i/><i/><i/><i/><span>{String(i+1).padStart(2,'0')}</span></div><strong>{entry.team||entry.name}</strong><small>{entry.subtitle||entry.description}</small><div className="room-card-people">{members.slice(0,3).map(e=><Portrait key={e.id} employee={e}/>)}<span>{members.length} people</span><ArrowUpRight size={15}/></div><footer><span>{available} available</span><span>{workload.length} tasks</span></footer></button>
+        })}</div>
+      </section>
+      {showReferences&&<section className="art-direction"><div><span className="studio-tag">GPT IMAGE GENERATION · ORIGINAL ART DIRECTION</span><h3>A cast of individuals.</h3><p>128 fictional identities. 96 women and 32 men. Generated reference portraits guide the cast; live wardrobe and appearance edits apply to the 3D characters.</p></div><img className="office-concept" src="/office/office-concept.webp" alt="Generated reference showing distinct research, communication, client and creative office zones"/><div className="cast-reference-grid">{Array.from({length:8},(_,i)=><figure key={i}><img loading="lazy" src={'/office/cast-'+(i+1)+'.webp'} alt={'Character reference atlas '+(i+1)+', 16 distinct fictional professionals'}/><figcaption>CAST {String(i+1).padStart(2,'0')} · {i*16+1}—{i*16+16}</figcaption></figure>)}</div></section>}
+      <div className="studio-topline" ref={roomAnchor}>
         <div className="studio-location">
           <span className="studio-tag">TRAYAAM HEADQUARTERS</span>
           <span className="studio-address">
-            The partnership floor <span> / </span> Level 32
+            {info.name} <span> / </span> {info.team || "Platform studio"}
           </span>
         </div>
         <div className="studio-save-state">
@@ -369,12 +385,11 @@ export default function Office({ tasks, create, changeTask }) {
           <span>DIVISION</span>
           <select
             aria-label="Office division"
-            value={team}
-            onChange={(e) => changeTeam(e.target.value)}
+            value={roomKey}
+            onChange={(e) => changeRoom(e.target.value)}
           >
-            {TEAMS.map((t) => (
-              <option key={t}>{t}</option>
-            ))}
+            <optgroup label="Departments">{DEPARTMENTS.map(d=><option key={d.id} value={d.id}>{d.team}</option>)}</optgroup>
+            <optgroup label="Platforms">{PLATFORMS.map(p=><option key={p.id} value={'platform-'+p.id}>{p.name}</option>)}</optgroup>
           </select>
           <ChevronDown size={14} />
         </label>
@@ -394,7 +409,7 @@ export default function Office({ tasks, create, changeTask }) {
                 { length: Math.ceil(teamEmployees.length / 16) },
                 (_, i) => (
                   <option key={i} value={i}>
-                    {i === 0 ? "East" : "West"} wing
+                    Wing {i + 1}
                   </option>
                 ),
               )}
@@ -446,15 +461,10 @@ export default function Office({ tasks, create, changeTask }) {
                     : "A SPACE FOR AMBITION"}
               </div>
               <h2>
-                {team === "Data lab"
-                  ? "Intelligence begins here."
-                  : team === "Outbound"
-                    ? "Every conversation matters."
-                    : "Where good work comes together."}
+                {info.name}
               </h2>
               <p>
-                {employees.length} specialists · {employees.length / 4} role
-                teams · four seats per specialty
+                {employees.length} colleagues on this floor · {info.subtitle || info.description}
               </p>
             </div>
             <div className="scene-camera">
@@ -509,15 +519,10 @@ export default function Office({ tasks, create, changeTask }) {
             </div>
             <div className="scene-bottom">
               <div className="scene-player">
-                <span
-                  className="avatar-sigil"
-                  style={{ background: style.outfit, color: style.skin }}
-                >
-                  <UserRound size={23} />
-                </span>
+                {teamEmployees.length>0&&<Portrait employee={selected}/>}
                 <div>
-                  <strong>{style.displayName}</strong>
-                  <small>{selected.title}</small>
+                  <strong>{teamEmployees.length?style.displayName:'Your next workspace'}</strong>
+                  <small>{teamEmployees.length?selected.title:'Assign a colleague from People'}</small>
                 </div>
                 <span className="gold-diamond" />
               </div>
@@ -548,18 +553,7 @@ export default function Office({ tasks, create, changeTask }) {
                     className={e.id === selectedId ? "selected" : ""}
                     onClick={() => chooseEmployee(e.id)}
                   >
-                    <span
-                      className="portrait"
-                      style={{
-                        "--skin": s.skin,
-                        "--shirt": s.outfit,
-                        "--hair": s.hair,
-                      }}
-                    >
-                      <i className="portrait-hair" />
-                      <i className="portrait-face" />
-                      <i className="portrait-body" />
-                    </span>
+                    <Portrait employee={e}/>
                     <strong>{s.displayName}</strong>
                     <small>{e.title}</small>
                     <span
@@ -579,7 +573,7 @@ export default function Office({ tasks, create, changeTask }) {
           </div>
         </div>
         <aside className="studio-inspector">
-          {mode === "build" ? (
+          {!teamEmployees.length && mode !== "build" ? <div className="empty-studio"><Users size={28}/><h3>Make this studio yours.</h3><p>No colleagues are assigned to this platform yet. Open People, select a colleague and change their assigned platform.</p><button className="studio-button" onClick={()=>setMode('team')}>Find a colleague</button></div> : mode === "build" ? (
             <>
               <div className="inspector-kicker">
                 <Armchair size={15} />
@@ -625,12 +619,7 @@ export default function Office({ tasks, create, changeTask }) {
                     <button
                       className="studio-button"
                       onClick={() => {
-                        setConfig((c) => ({
-                          ...c,
-                          objects: c.objects.filter(
-                            (o) => o.id !== selectedObject,
-                          ),
-                        }));
+                        mutateRoom(r=>({...r,objects:r.objects.filter(o=>o.id!==selectedObject)}));
                         setDirty(true);
                         setSelectedObject(null);
                       }}
@@ -722,18 +711,7 @@ export default function Office({ tasks, create, changeTask }) {
                 SELECTED SPECIALIST
               </div>
               <div className="inspector-person">
-                <span
-                  className="portrait large"
-                  style={{
-                    "--skin": style.skin,
-                    "--shirt": style.outfit,
-                    "--hair": style.hair,
-                  }}
-                >
-                  <i className="portrait-hair" />
-                  <i className="portrait-face" />
-                  <i className="portrait-body" />
-                </span>
+                <Portrait employee={selected} large/>
                 <span className="gold-diamond" />
               </div>
               <input
@@ -795,7 +773,7 @@ export default function Office({ tasks, create, changeTask }) {
                       value={style.hairStyle}
                       onChange={(e) => customize("hairStyle", e.target.value)}
                     >
-                      {["short", "bob", "curly", "bun", "bald"].map((o) => (
+                      {["short", "bob", "curly", "bun", "bald", "long", "ponytail", "braid", "pixie", "hijab"].map((o) => (
                         <option key={o}>{o}</option>
                       ))}
                     </select>
@@ -808,15 +786,18 @@ export default function Office({ tasks, create, changeTask }) {
                       onChange={(e) => customize("accessory", e.target.value)}
                     >
                       <option>none</option>
-                      <option>glasses</option>
+                      <option>glasses</option><option>earrings</option><option>headset</option>
                     </select>
                   </label>
+                  <label>Wardrobe<select aria-label="Character wardrobe" value={style.wardrobe} onChange={e=>customize('wardrobe',e.target.value)}>{['blazer','dress','knit','shirt'].map(v=><option key={v}>{v}</option>)}</select></label>
+                  <p className="reference-note">Portraits are generated character references. Your edits change the playable 3D model.</p>
                   <button
                     className="studio-button"
                     onClick={() => {
                       setConfig((c) => {
                         const copy = { ...c.employees };
-                        delete copy[selected.id];
+                        const {displayName,platform}=copy[selected.id]||{};
+                        copy[selected.id]={...(displayName?{displayName}:{}),...(platform?{platform}:{})};
                         return { ...c, employees: copy };
                       });
                       setDirty(true);
@@ -827,6 +808,7 @@ export default function Office({ tasks, create, changeTask }) {
                 </div>
               ) : (
                 <>
+                  <div className="employee-platform"><label>Assigned platform<select aria-label="Employee platform" value={employeePlatform(selected,config)} onChange={e=>{const next=e.target.value;const dept=DEPARTMENTS.find(d=>d.team===selected.team);changeRoom(dept.id);customize('platform',next);}}>{PLATFORMS.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label><small>{selected.team} · {selected.gender==='woman'?'She / her':'He / him'} · fictional digital colleague</small></div>
                   <div className="employee-mission">
                     <h4>Responsibility</h4>
                     <p>{selected.mission}</p>
@@ -907,7 +889,7 @@ export default function Office({ tasks, create, changeTask }) {
           </div>
           <div className="full-roster-grid">
             {ROLES.filter((r) =>
-              r.join(" ").toLowerCase().includes(rosterSearch.toLowerCase()),
+              (r.join(" ")+" "+EMPLOYEES.filter(e=>e.role===r[0]).map(e=>config.employees[e.id]?.displayName||e.name).join(" ")).toLowerCase().includes(rosterSearch.toLowerCase()),
             ).map(([id, title, mission, division]) => (
               <div className="role-team-card" key={id}>
                 <span>{division}</span>
@@ -920,8 +902,7 @@ export default function Office({ tasks, create, changeTask }) {
                       onClick={() => chooseEmployee(e.id)}
                       aria-label={"Control " + e.name}
                     >
-                      <UserRound size={17} />
-                      {e.id.split("-").at(-1)}
+                      <Portrait employee={e}/><span>{config.employees[e.id]?.displayName||e.name}<small className="roster-person-status">{actualStatus(tasks.find(t=>t.agentId===e.id&&!['Done','Cancelled'].includes(t.status)))}</small></span>
                       <span className="tiny-light offline" />
                     </button>
                   ))}
@@ -935,16 +916,16 @@ export default function Office({ tasks, create, changeTask }) {
         <div className="studio-section-heading">
           <div>
             <span>MISSION CONTROL</span>
-            <h3>Real tasks. Visible progress.</h3>
+            <h3>{allTasks?'Company-wide mission control':info.team||info.name} assignments.</h3>
           </div>
-          <button className="studio-button" onClick={() => create("")}>
+          <div className="task-board-actions"><button className="studio-button" aria-pressed={allTasks} onClick={()=>setAllTasks(!allTasks)}>{allTasks?'This workspace':'All company tasks'}</button><button className="studio-button" onClick={() => create("")}>
             <Plus size={14} />
             New assignment
-          </button>
+          </button></div>
         </div>
         <div className="office-task-grid">
-          {tasks.length ? (
-            tasks.map((t) => (
+          {(allTasks?tasks:roomTasks).length ? (
+            (allTasks?tasks:roomTasks).map((t) => (
               <article key={t.id}>
                 <div>
                   <span

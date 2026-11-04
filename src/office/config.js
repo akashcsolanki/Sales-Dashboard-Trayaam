@@ -26,52 +26,28 @@ export const OUTFITS = [
   "#314b41",
 ];
 export const HAIRS = ["#27221e", "#5b3d26", "#a47841", "#d5bf8b", "#7d7b78"];
-const names = [
-  "Avery",
-  "Morgan",
-  "Riley",
-  "Jordan",
-  "Alex",
-  "Sam",
-  "Taylor",
-  "Casey",
-  "Jamie",
-  "Cameron",
-  "Drew",
-  "Quinn",
-  "Sage",
-  "Ellis",
-  "Rowan",
-  "Reese",
-  "Blair",
-  "Harper",
-  "Dakota",
-  "Emerson",
-  "Finley",
-  "Hayden",
-  "Kendall",
-  "Lane",
-  "Marlowe",
-  "Noel",
-  "Oakley",
-  "Parker",
-  "Robin",
-  "Skyler",
-  "Tatum",
-  "Winter",
+const castHair = [
+ ['bun','hijab','braid','bob','curly','curly','pixie','bun','long','curly','long','bob','short','curly','short','short'],
+ ['long','braid','long','hijab','curly','braid','bob','long','bun','curly','bun','braid','curly','short','bald','short'],
+ ['bun','curly','ponytail','hijab','curly','bob','braid','curly','bun','long','bob','curly','short','short','short','curly'],
+ ['long','curly','bob','hijab','bob','curly','pixie','long','pixie','long','curly','braid','curly','bald','short','curly'],
+ ['curly','braid','long','hijab','bob','bob','bun','curly','bun','long','curly','long','curly','short','bald','short'],
+ ['bun','braid','bun','hijab','bob','curly','bob','braid','bob','bob','curly','bob','curly','short','short','curly'],
+ ['bun','braid','long','hijab','curly','pixie','braid','bob','long','bun','long','braid','curly','short','short','curly'],
+ ['bob','bun','curly','bob','hijab','curly','bob','braid','long','bun','curly','long','short','bald','curly','short'],
 ];
 export function employeeStyle(id) {
-  const index = EMPLOYEES.findIndex((e) => e.id === id);
+  const employee = EMPLOYEES.find(e=>e.id===id) || EMPLOYEES[0];
+  const index = employee.castIndex;
+  const female = employee.gender === "woman";
   return {
-    displayName:
-      names[Math.floor(index / 4) % names.length] +
-      " " +
-      String((index % 4) + 1).padStart(2, "0"),
-    skin: SKINS[index % SKINS.length],
-    outfit: OUTFITS[Math.floor(index / 4) % OUTFITS.length],
-    hair: HAIRS[index % HAIRS.length],
-    hairStyle: ["short", "bob", "curly", "bun"][index % 4],
-    accessory: index % 3 === 0 ? "glasses" : "none",
+    displayName: employee.name,
+    skin: SKINS[[1,4,0,0,0,1,0,1,0,1,1,1,1,0,4,0][index%16]],
+    outfit: OUTFITS[(index + Math.floor(index / 6)) % OUTFITS.length],
+    hair: HAIRS[(index * 3 + Math.floor(index / 5)) % HAIRS.length],
+    hairStyle: castHair[Math.floor(index/16)][index%16],
+    accessory: ["glasses", "none", "earrings", "headset"][index % 4],
+    wardrobe: female ? ["blazer", "dress", "knit"][index % 3] : ["blazer", "shirt", "knit"][index % 3],
   };
 }
 export function defaultOffice() {

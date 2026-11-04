@@ -297,8 +297,28 @@ export function createOfficeEngine(
   emblem.position.set(-17.66, 3.1, 0);
   emblem.rotation.y = Math.PI / 2;
   scene.add(emblem);
-  // Work zone rug.
-  box(25, 0.025, 18, "#a5a69c", -3, 0.07, -1.5, scene, 0.15);
+  const roomAccent=config.room?.accent || "#a5a69c";
+  const roomKind=config.room?.kind || "lab";
+  // Layered textiles and low architectural elements define each department.
+  const rugColor='#'+new THREE.Color(roomAccent).lerp(new THREE.Color('#d4cebf'),.55).getHexString();
+  box(25, 0.025, employees.length<=8?12:18, rugColor, -3, 0.07, employees.length<=8?-4:-1.5, scene, 0.15);
+  for(let i=0;i<9;i++) {
+    box(.12,3.7,.16,"#c6af84",-17.61,2.1,2+i*.65);
+  }
+  if(roomKind==='operations'||roomKind==='lab') {
+    for(let i=0;i<4;i++) {
+      box(3.8,1.8,.1,'#26363e',-10+i*4.5,3,-12.6);
+      for(let j=0;j<4;j++) box(.45,.15+j*.13,.03,roomAccent,-11.2+i*4.5+j*.6,2.75+j*.065,-12.52);
+    }
+  }
+  const roomSign=textPlane(config.room?.name || "THE DISCOVERY LAB",10,1,"#6a5840");
+  roomSign.position.set(-2,4.4,-12.65);
+  // Suspended linear pendants above the work zones, kept high enough for clear sightlines.
+  for(const x of [-10,2]) {
+    box(6,.12,.35,"#514c42",x,5.5,-3);
+    box(5.8,.025,.25,"#f1d8aa",x,5.42,-3);
+    for(const dx of [-2.2,2.2]) cylinder(.012,.012,1.1,"#bca36f",x+dx,6,-3);
+  }
   for (let x = -15; x < 10; x += 0.3)
     box(0.015, 0.01, 17.6, "#aaa99e", x, 0.09, -1.5, scene, 0).castShadow =
       false;
@@ -381,28 +401,68 @@ export function createOfficeEngine(
     root.userData.employeeId = employee.id;
     const body = new THREE.Group();
     root.add(body);
+    const identityIndex=employee.portrait;
+    const female=employee.gender === "woman";
+    const build=.88+(identityIndex%5)*.055;
+    const stature=.91+(Math.floor(identityIndex/5)%6)*.035;
+    root.scale.set(build,stature,build);
     body.position.y = 0.01;
     // Tapered jacket, collar, buttons and articulated limbs.
-    const torso = box(0.62, 0.8, 0.34, style.outfit, 0, 1.15, 0, body, 0.15);
+    const torso = box(female ? .54 : .64, 0.76, 0.33, style.outfit, 0, 1.17, 0, body, 0.16);
+    if(style.wardrobe === "dress") {
+      const skirt = cylinder(.24,.39,.62,style.outfit,0,.77,0,body);
+      skirt.scale.z=.8;
+    }
+    if(style.wardrobe === "blazer") {
+      for(const side of [-1,1]) {
+        const lapel=box(.12,.4,.035,"#d5cabb",side*.11,1.42,.18,body,.01);
+        lapel.rotation.z=side*.2;
+      }
+    }
+    if(style.wardrobe === "knit") for(let y=1;y<1.48;y+=.055) box(.48,.008,.015,style.hair,0,y,.171,body,0);
+    if(style.wardrobe === "shirt") box(.025,.62,.025,"#eee8da",0,1.18,.18,body,.003);
     sphere(0.22, style.outfit, -0.31, 1.44, 0, body, 0.55, 1, 0.7);
     sphere(0.22, style.outfit, 0.31, 1.44, 0, body, 0.55, 1, 0.7);
     box(0.11, 0.37, 0.035, "#e8e2d6", 0, 1.4, 0.175, body, 0.01);
     box(0.035, 0.27, 0.025, "#a18a55", 0, 1.4, 0.2, body, 0.005);
     for (let i = 0; i < 3; i++)
       sphere(0.017, "#b9a373", 0.09, 1.15 + i * 0.1, 0.182, body);
-    const head = sphere(0.23, style.skin, 0, 1.91, 0, body, 0.88, 1.13, 0.86);
+    const faceWidth=.83+(identityIndex%4)*.055;
+    const faceLength=1.02+(Math.floor(identityIndex/4)%4)*.065;
+    const head = sphere(0.23, style.skin, 0, 1.91, 0, body, faceWidth, faceLength, 0.86);
+    // Cheek and chin profiles vary independently across the cast.
+    sphere(.14,style.skin,0,1.79,.035,body,.85+(identityIndex%3)*.1,.5,.84);
     cylinder(0.09, 0.09, 0.18, style.skin, 0, 1.65, 0, body);
     sphere(0.05, style.skin, -0.21, 1.91, 0, body, 0.5, 1, 0.7);
     sphere(0.05, style.skin, 0.21, 1.91, 0, body, 0.5, 1, 0.7);
     sphere(0.045, style.skin, 0, 1.91, 0.19, body, 0.6, 0.9, 1);
-    for (const x of [-0.079, 0.079]) {
+    const eyeSpacing=.071+(identityIndex%4)*.006;
+    for (const x of [-eyeSpacing, eyeSpacing]) {
       sphere(0.034, "#f0ece1", x, 1.95, 0.18, body, 1, 0.7, 0.35);
-      sphere(0.019, "#302b25", x, 1.95, 0.193, body, 0.8, 1, 0.5);
+      sphere(0.019, ["#302b25","#5a6c58","#526775","#786149"][identityIndex%4], x, 1.95, 0.193, body, 0.8, 1, 0.5);
+      sphere(.006,"#ffffff",x-.004,1.959,.202,body);
       box(0.07, 0.019, 0.015, style.hair, x, 2.02, 0.18, body, 0.008);
     }
     box(0.08, 0.012, 0.015, "#9d6e5c", 0, 1.8, 0.18, body, 0.004);
     if (style.hairStyle !== "bald") {
       sphere(0.235, style.hair, 0, 2.075, -0.02, body, 0.94, 0.55, 0.89);
+      if (style.hairStyle === "pixie") {
+        const sweep=sphere(.2,style.hair,.06,2.1,.04,body,.95,.4,.9);sweep.rotation.z=.22;
+      }
+      if (["long","ponytail","braid"].includes(style.hairStyle)) {
+        if(style.hairStyle==='long') {
+          for(const x of [-.2,.2])sphere(.18,style.hair,x,1.86,-.09,body,.52,2.1,.85);
+          sphere(.24,style.hair,0,1.87,-.15,body,1.05,1.7,.45);
+        } else if(style.hairStyle==='ponytail') {
+          sphere(.16,style.hair,.04,1.94,-.27,body,.7,1.9,.7);
+          sphere(.09,'#c9a86a',.02,2.1,-.24,body,1,.3,1);
+        } else for(let i=0;i<6;i++)sphere(.085,style.hair,Math.sin(i*2)*.025,2.06-i*.085,-.26,body,.9,1,.7);
+      }
+      if(style.hairStyle==='hijab') {
+        sphere(.27,style.outfit,0,2.04,-.06,body,1.05,.83,1);
+        for(const x of [-.23,.23])sphere(.12,style.outfit,x,1.9,-.02,body,.7,1.8,.75);
+        sphere(.25,style.outfit,0,1.62,-.1,body,1.15,.5,.8);
+      }
       if (style.hairStyle === "bob")
         box(0.43, 0.36, 0.27, style.hair, 0, 1.99, -0.12, body, 0.12);
       if (style.hairStyle === "bun")
@@ -427,6 +487,17 @@ export function createOfficeEngine(
         lens.position.set(x, 1.95, 0.203);
         body.add(lens);
       }
+    if(style.accessory==='earrings') for(const x of [-.23,.23]) {
+      const hoop=new THREE.Mesh(new THREE.TorusGeometry(.045,.009,5,14),mat('#c9a86a',.7));
+      hoop.position.set(x,1.82,.01);body.add(hoop);
+    }
+    if(style.accessory==='headset') {
+      for(const x of [-.25,.25])sphere(.075,'#363c42',x,1.94,0,body,.5,1,.8);
+      const band=new THREE.Mesh(new THREE.TorusGeometry(.26,.015,5,20,Math.PI),mat('#363c42'));
+      band.position.set(0,1.96,0);body.add(band);
+      box(.15,.014,.014,'#363c42',.18,1.82,.18,body,.003);
+    }
+    if(!female && identityIndex%3!==0) sphere(.17,style.hair,0,1.79,.08,body,.95,.46,.7);
     const arms = [],
       legs = [];
     for (const side of [-1, 1]) {
@@ -473,24 +544,7 @@ export function createOfficeEngine(
   employees.forEach((e, i) => {
     avatar(e, i);
   });
-  // Executive meeting corner with transparent partition and upholstered chairs.
-  box(5.8, 0.03, 11.4, "#929a97", 13, 0.08, -4, scene, 0.1);
-  const partition = new THREE.Mesh(
-    new THREE.BoxGeometry(0.07, 3.2, 11.7),
-    glass,
-  );
-  partition.position.set(9.7, 1.7, -4);
-  scene.add(partition);
-  box(0.06, 3.4, 0.06, "#b39b69", 9.7, 1.8, -9.8);
-  box(0.06, 3.4, 0.06, "#b39b69", 9.7, 1.8, 1.8);
-  for (let i = 0; i < 3; i++) {
-    chair(11.2, -7 + i * 2.3, scene);
-    const ch = chair(14.8, -7 + i * 2.3, scene);
-    ch.rotation.y = Math.PI;
-  }
-  const display = box(3.6, 2, 0.1, "#202b33", 14.2, 3, -12.7);
-  const board = textPlane("PARTNERSHIP STUDIO", 3.2, 0.7, "#d4b77c", "#202b33");
-  board.position.set(14.2, 3, -12.63);
+  // Department-specific furniture is modeled from the room's saved catalog.
   function furniture(obj) {
     const group = new THREE.Group();
     group.position.set(obj.x, 0, obj.z);
@@ -499,6 +553,28 @@ export function createOfficeEngine(
     scene.add(group);
     const color = obj.color || "#a58a67";
     if (obj.type === "desk") desk(0, 0, group, color);
+    if(obj.type==='booth') {
+      box(3.2,3.6,.18,color,0,1.8,-1.5,group,.1);
+      for(let i=0;i<10;i++)box(.05,3.2,.05,'#bda882',-1.3+i*.29,1.85,-1.38,group,.01);
+      for(const x of [-1.5,1.5])box(.16,3.6,3,color,x,1.8,0,group,.06);
+      box(3.2,.15,3,color,0,3.55,0,group,.04);
+      box(2.7,.12,.8,'#c5b49b',0,1.3,-.7,group,.12);
+      box(.8,.65,.06,'#2c404b',0,1.7,-1.05,group,.04);
+      box(2.6,.025,.1,'#edd6aa',0,3.4,-.8,group,.01);
+      chair(0,.6,group);
+    }
+    if(obj.type==='whiteboard') {
+      box(3.8,2.1,.12,color,0,2.4,0,group,.08);
+      for(const x of [-1.65,1.65])cylinder(.035,.035,2.4,'#b09a70',x,1.2,0,group);
+      for(let i=0;i<9;i++)box(.42,.31,.025,['#d3b68b','#a9b9aa','#bc9bad'][i%3],-1.3+(i%3)*.65,2.9-Math.floor(i/3)*.48,.08,group,.015);
+    }
+    if(obj.type==='server') {
+      box(2.8,3.3,1.1,color,0,1.7,0,group,.1);
+      for(let i=0;i<6;i++) {
+        box(2.5,.36,.04,'#263338',0,.45+i*.49,.57,group,.03);
+        for(let j=0;j<3;j++)sphere(.025,j===0?'#91baaa':'#d8b575',.85+j*.12,.45+i*.49,.61,group);
+      }
+    }
     if (obj.type === "plant") {
       cylinder(0.38, 0.29, 0.7, "#d5cbbb", 0, 0.4, 0, group);
       cylinder(0.26, 0.26, 0.03, "#4a3a28", 0, 0.77, 0, group);
@@ -543,6 +619,7 @@ export function createOfficeEngine(
     }
     if (obj.type === "table") {
       const boardroom = obj.id === "table-board";
+      if(boardroom) for(let i=0;i<3;i++) {const left=chair(-1.8,-2.3+i*2.3,group);left.rotation.y=Math.PI/2;const right=chair(1.8,-2.3+i*2.3,group);right.rotation.y=-Math.PI/2;}
       const w = boardroom ? 2.2 : 2.1,
         d = boardroom ? 7.5 : 1.2;
       box(w, 0.16, d, color, 0, boardroom ? 1.35 : 0.65, 0, group, 0.25);
@@ -875,6 +952,8 @@ export function createOfficeEngine(
           .copy(avatar.root.position)
           .add(new THREE.Vector3(0, 1, 0));
         camera.position.copy(controls.target).add(offset);
+        avatar.root.rotation.y=Math.atan2(offset.x,offset.z);
+        controls.update();renderer.render(scene,camera);
       }
     },
     view(type) {

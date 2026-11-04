@@ -350,3 +350,21 @@ test("runtime claims use version checks and cannot access prospect snapshot", as
   );
   assert.equal((await call("snapshot", { runtime: true })).status, 401);
 });
+
+test('department room edits and platform assignments persist without changing another room', async()=>{
+ const {call}=setup(), cookie=await login(call), config=office();
+ config.rooms={
+  'dept-data-lab':{objects:[{id:'lab-desk',type:'desk',x:1,z:2,rotation:0,color:'#abcdef'}],positions:{'dataresearch-1':{x:2,z:3}}},
+  'platform-email':{objects:[{id:'email-pod',type:'booth',x:10,z:-5,rotation:0,color:'#abcdef'}],positions:{}}
+ };
+ config.employees['dataresearch-1']={platform:'linkedin',hairStyle:'braid',accessory:'earrings',wardrobe:'dress'};
+ assert.equal((await call('office',{method:'PATCH',cookie,body:{version:0,config}})).status,200);
+ assert.deepEqual((await (await call('office',{cookie})).json()).config,config);
+ const next=structuredClone(config);next.rooms['dept-data-lab'].objects[0].x=4;
+ assert.equal((await call('office',{method:'PATCH',cookie,body:{version:1,config:next}})).status,200);
+ const saved=(await (await call('office',{cookie})).json()).config;
+ assert.equal(saved.rooms['dept-data-lab'].objects[0].x,4);
+ assert.deepEqual(saved.rooms['platform-email'],config.rooms['platform-email']);
+ const invalid=structuredClone(saved);invalid.rooms['other-room']={objects:[],positions:{}};
+ assert.equal((await call('office',{method:'PATCH',cookie,body:{version:2,config:invalid}})).status,400);
+});

@@ -23,3 +23,6 @@ Supply PROJECT-CONTEXT.md plus the task, relevant prospect ID, preserved source 
 ## Remaining integration work
 
 Runtime connection counts and Working status derive from task heartbeats received within 90 seconds. Older Working tasks display Stale heartbeat; outputs are visible in task control. Runtime registration, lease expiry/requeue, atomic per-seat scheduling, SSE updates, encrypted provider credentials and approved channel adapters remain future work. Do not represent the endpoints as a complete durable distributed agent scheduler.
+
+
+The 128 seats now have unique fictional full names (three women and one man per role) and image-generated character references. Treat stable employee IDs, not presentation names, as task identity. Department and platform workspace assignments are UI organization and capacity metadata; assigning an employee to a platform does not grant provider access or authorize sending. The office-v2 config persists optional platform overrides. See src/office/workspaces.js for the default role-to-platform map.

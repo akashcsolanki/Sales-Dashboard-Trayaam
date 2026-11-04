@@ -82,8 +82,9 @@ const server = http.createServer(async (req, res) => {
         },
         params: { path: url.pathname.slice(5).split("/") },
       });
+      const responseBody=Buffer.from(await result.arrayBuffer());
       res.writeHead(result.status, Object.fromEntries(result.headers));
-      res.end(Buffer.from(await result.arrayBuffer()));
+      res.end(responseBody);
       return;
     }
     const relative = decodeURIComponent(url.pathname).replace(/^\/+/, ""),
@@ -94,22 +95,25 @@ const server = http.createServer(async (req, res) => {
       res.end();
       return;
     }
-    if (!fs.existsSync(filename) || fs.statSync(filename).isDirectory())
+    if (!fs.existsSync(filename) || fs.statSync(filename).isDirectory()) {
+      if(path.extname(filename)){res.writeHead(404);res.end('Not found');return;}
       filename = path.join(base, "index.html");
+    }
     const types = {
       ".html": "text/html",
       ".js": "text/javascript",
       ".css": "text/css",
-      ".svg": "image/svg+xml",
+      ".svg": "image/svg+xml", ".webp":"image/webp", ".png":"image/png", ".woff2":"font/woff2",
     };
+    const responseBody=fs.readFileSync(filename);
     res.writeHead(200, {
       "Content-Type":
         types[path.extname(filename)] || "application/octet-stream",
     });
-    res.end(fs.readFileSync(filename));
+    res.end(responseBody);
   } catch (e) {
-    res.writeHead(500);
-    res.end("Local QA server error");
+    if(!res.headersSent)res.writeHead(500);
+    if(!res.writableEnded)res.end("Local QA server error");
     console.error(e.message);
   }
 });

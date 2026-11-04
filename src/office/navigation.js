@@ -5,11 +5,12 @@ export function obstaclesFor(employees, objects, deskPosition) {
     const size = {
       desk: [4.2, 2.7],
       sofa: [4.1, 2],
-      table: o.id === "table-board" ? [2.8, 8.1] : [2.7, 1.8],
+      table: o.id === "table-board" ? [6.4, 8.1] : [2.7, 1.8],
       plant: [1, 1],
       partition: [0.7, 4.6],
       bookshelf: [3.8, 1.2],
       art: [2.4, 1.7],
+      booth: [3.5,3.5], whiteboard:[4.1,.7], server:[3.2,1.5],
     }[o.type];
     if (size) {
       const r = o.rotation || 0;
@@ -21,7 +22,7 @@ export function obstaclesFor(employees, objects, deskPosition) {
       });
     }
   }
-  bounds.push({ x: 9.7, z: -4, w: 0.4, d: 11.7 });
+
   return bounds;
 }
 export function canStand(x, z, obstacles) {

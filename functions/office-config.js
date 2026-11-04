@@ -1,4 +1,5 @@
 import { EMPLOYEES } from "../src/model.js";
+import { ROOM_KEYS, PLATFORMS } from "../src/office/workspaces.js";
 
 const choices = {
   theme: ["penthouse", "studio", "midnight"],
@@ -6,7 +7,7 @@ const choices = {
   floor: ["oak", "marble", "slate"],
   wall: ["ivory", "charcoal", "sage"],
 };
-const types = ["desk", "plant", "sofa", "table", "lamp", "partition", "art", "bookshelf"];
+const types = ["desk", "plant", "sofa", "table", "lamp", "partition", "art", "bookshelf", "booth", "whiteboard", "server"];
 const employeeIds = new Set(EMPLOYEES.map((e) => e.id));
 const record = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const keys = (v, allowed) => record(v) && Object.keys(v).every((k) => allowed.includes(k));
@@ -16,7 +17,7 @@ const position = (v) => keys(v, ["x", "z"]) && number(v.x, 40) && number(v.z, 40
 
 // Strict, data-only schema: never persist arbitrary fields, URLs, or renderer input.
 export function validOfficeConfig(config) {
-  if (!keys(config, [...Object.keys(choices), "objects", "employees", "positions"])) return false;
+  if (!keys(config, [...Object.keys(choices), "objects", "employees", "positions", "rooms"])) return false;
   if (!Object.entries(choices).every(([key, values]) => values.includes(config[key]))) return false;
   if (!Array.isArray(config.objects) || config.objects.length > 300) return false;
   const seen = new Set();
@@ -29,13 +30,27 @@ export function validOfficeConfig(config) {
   }
   if (!record(config.employees) || !record(config.positions)) return false;
   for (const [id, employee] of Object.entries(config.employees)) {
-    if (!employeeIds.has(id) || !keys(employee, ["displayName", "skin", "hair", "hairStyle", "outfit", "accessory"])) return false;
+    if (!employeeIds.has(id) || !keys(employee, ["displayName", "skin", "hair", "hairStyle", "outfit", "accessory", "wardrobe", "platform"])) return false;
     for (const [key, value] of Object.entries(employee)) {
       if (key === "displayName" && (typeof value !== "string" || !value.trim() || value.length > 50 || /[\u0000-\u001f\u007f]/.test(value))) return false;
       if (["skin", "hair", "outfit"].includes(key) && !color(value)) return false;
-      if (key === "hairStyle" && !["short", "bob", "curly", "bun", "bald"].includes(value)) return false;
-      if (key === "accessory" && !["none", "glasses"].includes(value)) return false;
+      if (key === "hairStyle" && !["short", "bob", "curly", "bun", "bald", "long", "ponytail", "braid", "pixie", "hijab"].includes(value)) return false;
+      if (key === "platform" && !PLATFORMS.some(p=>p.id===value)) return false;
+      if (key === "wardrobe" && !["blazer", "dress", "knit", "shirt"].includes(value)) return false;
+      if (key === "accessory" && !["none", "glasses", "earrings", "headset"].includes(value)) return false;
     }
   }
-  return Object.entries(config.positions).every(([id, v]) => employeeIds.has(id) && position(v));
+  if (!Object.entries(config.positions).every(([id, v]) => employeeIds.has(id) && position(v))) return false;
+  if (config.rooms !== undefined) {
+    if (!record(config.rooms) || Object.keys(config.rooms).some(key=>!ROOM_KEYS.includes(key))) return false;
+    let total = 0;
+    for (const room of Object.values(config.rooms)) {
+      if (!keys(room, ["objects","positions"]) || !Array.isArray(room.objects) || room.objects.length>80 || !record(room.positions)) return false;
+      total += room.objects.length;
+      // Reuse the same bounded furniture and employee-position validator, without nesting rooms.
+      if (!validOfficeConfig({...config, objects:room.objects, positions:room.positions, rooms:undefined})) return false;
+    }
+    if (total>600) return false;
+  }
+  return true;
 }
