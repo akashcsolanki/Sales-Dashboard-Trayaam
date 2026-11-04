@@ -144,7 +144,9 @@ export async function onRequest({ request, env, params }) {
     if (path === "snapshot" && method === "GET") {
       const [records, metadata, events, tasks] = await Promise.all([
         env.DB.prepare("SELECT data,version FROM records").all(),
-        env.DB.prepare("SELECT id,data FROM metadata").all(),
+        env.DB.prepare(
+          "SELECT id,data FROM metadata WHERE id LIKE 'inventory::%' OR id IN ('importedAt','shortlistCount','applicationResults')",
+        ).all(),
         env.DB.prepare(
           "SELECT data FROM events ORDER BY rowid DESC LIMIT 10000",
         ).all(),
@@ -164,7 +166,14 @@ export async function onRequest({ request, env, params }) {
       return json({
         ...meta,
         prospects: records.results
-          .map((r) => ({ ...JSON.parse(r.data), version: r.version }))
+          .map((r) => {
+            const p = JSON.parse(r.data);
+            delete p.original;
+            delete p.decisionMakerResearch;
+            delete p.contacts;
+            delete p.decisionMaker;
+            return { ...p, version: r.version };
+          })
           .sort(
             (a, b) =>
               b.shortlist - a.shortlist ||
@@ -184,6 +193,15 @@ export async function onRequest({ request, env, params }) {
           );
         }),
       });
+    }
+    if (path.startsWith("prospects/") && method === "GET") {
+      const result = await env.DB.prepare(
+        "SELECT data,version FROM records WHERE id=?",
+      )
+        .bind(path.split("/")[1])
+        .first();
+      if (!result) return json({ error: "Prospect not found" }, 404);
+      return json({ ...JSON.parse(result.data), version: result.version });
     }
     if (path === "source" && method === "GET") {
       const url = new URL(request.url),

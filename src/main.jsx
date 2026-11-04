@@ -186,6 +186,14 @@ function App() {
     setMobile(false);
     setFilters({ search: "", priority: "" });
   }
+  async function openProspect(p) {
+    try {
+      const full = await api("prospects/" + p.id);
+      setSelected(full);
+    } catch (e) {
+      setToast(e.message);
+    }
+  }
   async function saveProspect(patch) {
     setBusy(true);
     try {
@@ -509,7 +517,7 @@ function App() {
                         <button
                           className="queue-row"
                           key={p.id}
-                          onClick={() => setSelected(p)}
+                          onClick={() => openProspect(p)}
                         >
                           <span className={"company-icon c" + i}>
                             {p.name.slice(0, 2).toUpperCase()}
@@ -668,14 +676,14 @@ function App() {
               all={prospects}
               filters={filters}
               setFilters={setFilters}
-              onSelect={setSelected}
+              onSelect={openProspect}
               onExport={download}
             />
           )}
           {tab === "Hiring signals" && (
             <Hiring
               rows={prospects.filter((p) => p.shortlist)}
-              onSelect={setSelected}
+              onSelect={openProspect}
             />
           )}
           {tab === "Pipeline" && (
@@ -708,7 +716,7 @@ function App() {
                         <button
                           className="deal"
                           key={p.id}
-                          onClick={() => setSelected(p)}
+                          onClick={() => openProspect(p)}
                         >
                           <span className="deal-name">
                             {p.name}
@@ -753,7 +761,7 @@ function App() {
               prospects={shown}
               filters={filters}
               setFilters={setFilters}
-              onSelect={setSelected}
+              onSelect={openProspect}
             />
           )}
           {tab === "Analytics" && (

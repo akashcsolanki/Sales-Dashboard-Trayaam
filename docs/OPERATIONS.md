@@ -23,10 +23,16 @@ Direct upload was selected for initial deployment. Source is in the requested Gi
 ## Verification record
 
 - 4 November 2026: React production build passed.
-- 4 November 2026: six model checks passed (role seats, reply denominator, dedup cohort, filters, CSV formula protection, URL scheme protection).
+- 4 November 2026: all 12 model/backend checks passed (role seats, reply denominators, cohort deduplication, filtering, CSV protection, safe URLs, authentication, CSRF rejection, throttling, session revocation, persisted edits, concurrency conflicts, opt-out suppression and runtime update boundaries).
 - 4 November 2026: Pages Functions bundle compiled successfully.
 - 4 November 2026: local authenticated Overview and Sales Office inspected in internal browser.
-- Cloud deployment and final verification: in progress; update this section before handoff.
+- 4 November 2026: production deployed at https://trayaam-sales-office.pages.dev/. Live API verification passed: unauthenticated snapshot 401/no-store; authenticated 1,549 companies/100 shortlist; starter records readable; two retained drafts for the first priority account; two manually verified open and two confirmed closed hiring pages; four useful queued preparation assignments persisted across refetch. Evidence is in ignored `.private/live-verification.json`.
+- GitHub source pushed to main. Initial commit `1065e1e`. Subsequent handoff/performance changes are recorded in Git history.
+- Browser QA: local authenticated desktop/mobile Overview, Sales Office and task creation checked; production sign-in and real directory rendering observed. Later browser reconnection attempts timed out in the automation runtime; do not claim an additional full final browser regression pass.
+
+## Current queue and hiring freshness
+
+Four preparation tasks are queued for hiring review, first-ten qualification, Feny asset refresh and channel-readiness review. None is executing until a real runtime connects. All 100 official vacancy URLs were fetched in a bounded six-worker review: 73 pages mentioned title tokens, 10 left the role unconfirmed and 17 failed retrieval. These automatic outcomes are not verified openings. Manual official-page review additionally confirmed Fifteen/PPC Manager and Beyond Co./Senior Web Developer currently advertised with application routes, with explicit fit gaps; Rak Design and The Digital Maze currently show no openings. Their historical priority records remain preserved.
 
 ## Access and retention
 

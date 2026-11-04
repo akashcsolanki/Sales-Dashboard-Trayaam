@@ -19,10 +19,12 @@ Primary business context: parent `TRAYAAM_POSITIONING_SESSION_BRIEF.md` (read th
 1. `outputs/hiring-expansion-2026-10-08/Trayaam-Hiring-Agencies.csv`: 100 immediate campaign companies, all linked to master IDs.
 2. `outreach/refined-uk-gmb-2026-10-07/agencies_master.csv`: 1,549 canonical unique companies. Original research priority preserved behind shortlist priority.
 3. Locations, published contacts, decision-maker enrichment, role demand/evidence, coverage, review queue, duplicate aliases and application registers are supporting evidence.
-4. `outputs/additional-b2b-starters-2026-10-08`: 44 CSV tabs, 18,539 source rows (includes empty/overlapping/historical/B2C records). Imported separately to `source_rows`, never automatically send-ready. Original README says seven workbooks/44 tabs captured, USA calling workbook's three tabs remain unavailable. Do not claim absent data was imported.
+4. `outputs/additional-b2b-starters-2026-10-08`: 44 CSV tabs, 18,539 source rows (18,462 nonempty rows imported; includes overlapping/historical/B2C records). Imported separately to `source_rows`, never automatically send-ready. Original README says seven workbooks/44 tabs captured, USA calling workbook's three tabs remain unavailable. Do not claim absent data was imported.
 5. Generated proposals/applications are drafts and supporting assets. Campaign README saying no submissions is superseded by APPLICATION_RESULTS.md: two official form acceptances, GLO/Feny and Inspire Digital/Akash. Confirmation email receipts are unverified. Company proposal emails unsent.
 
 Full CSV source register: 137 files with hashes and row counts. `scripts/import-data.py` reproduces ignored snapshot/SQL seeds. Source-listed coordinate records: 1,565 across canonical companies; multiple locations belong to one company. No geocoding is invented. Search-city is not always legal headquarters; coordinates retain source listing basis.
+
+`scripts/import-supporting.py` adds the fuller 1,549-row decision-maker research export, campaign fields and 200 retained drafts to protected storage. Profile Evidence and Drafts tabs expose them. `scripts/recheck-hiring.py` captures bounded live source text privately; `scripts/apply-rechecks.py` applies dated outcomes and preserves the two known form acceptances. Run supporting and hiring updates after the base import. The overview endpoint excludes large research/original fields; selecting a prospect loads its full protected profile on demand.
 
 ## Positioning
 
