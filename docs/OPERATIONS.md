@@ -39,3 +39,21 @@ Four preparation tasks are queued for hiring review, first-ten qualification, Fe
 One shared owner password, no user-level permissions. Use a long random value. Failed login throttled per hashed IP in D1 (10 attempts per 15 minutes). Sessions last 12 hours and are stored hashed. Mutation requests require same Origin; runtime bearer endpoints are separate. Cache-Control no-store on every API response. All app data is server-side; no localStorage fallback. Future account-based SSO is recommended before expanding beyond the trusted sales team.
 
 Preserve opt-outs and historical evidence. Data deletion/retention requires a deliberate policy; source records are not automatically fresh. Marking Eligible is an internal assessment field, not permission to send. No send endpoints exist.
+
+## Local security and office persistence update — 4 November 2026
+
+The local source review added bounded streaming JSON parsing: normal request bodies are limited to 32 KiB and authenticated office saves to 128 KiB. Limits count actual bytes even without a trustworthy Content-Length. Oversized input returns 413; malformed UTF-8/JSON and non-object roots return 400. The QA adapter also caps its earlier Node request buffering and now preserves the actual Origin header, matching the production handler's rejection of missing-origin mutations.
+
+`GET /api/office` requires an owner session and returns `{config,version}`; before the first save this is `{config:null,version:0}`. `PATCH /api/office` replaces the full config using the expected version and returns the new version. A single D1 statement enforces first-save and subsequent compare-and-swap conflicts (409). Metadata key `office-v2` is separate from imported data. Runtime bearer credentials grant no office access.
+
+The office schema permits only the documented theme, lighting, floor and wall choices; at most 300 uniquely identified furniture objects; known employee IDs; bounded coordinates (±40), radians (±6.3), hex colors and employee customization fields. No arbitrary URLs or executable fields are stored. A first save creates version 1. Refresh before retrying a stale save.
+
+Backend regression coverage verifies authentication, CSRF, runtime separation, schema rejection, full-roster/furniture persistence, concurrent creation and stale update conflicts, streamed cancellation and byte/UTF-8 boundaries. These local Node/SQLite checks do not establish effective production Cloudflare limits, secret configuration or deployed headers. No production network security tests were performed in this update. Source changes require a separate deployment before they protect the live site.
+
+Static and API responses add transport/referrer controls; static CSP allows self-hosted fonts and disallows embedded objects. The identity model remains one shared trusted owner password. Private import files, local QA SQLite and explicit CSV downloads still exist; “server-side data” refers to the absence of a browser persistence fallback, not a lack of local business-data copies.
+
+## Redesign verification — 5 November 2026
+
+All 20 model/backend/navigation tests pass and the production build passes. The lazily loaded 3D office chunk is 552 kB minified (144 kB gzip); Vite reports its advisory size warning. Desktop and narrow-screen browser QA checked official branding, character customization, keyboard and floor-click movement, saved name/load, furniture placement/rotation/removal, roster search and both Pipeline wings. The checked narrow viewport had no document-width overflow. No browser console errors were recorded in the checked office session.
+
+The security scan completed with one low-severity streamed-body finding fixed; see SECURITY-REVIEW.md. This supersedes the earlier pending-review state. Deployment and live verification for this revision are recorded below when completed.

@@ -55,11 +55,21 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, "http://127.0.0.1:4173");
     if (url.pathname.startsWith("/api/")) {
-      let body = "";
-      for await (const chunk of req) body += chunk;
+      const chunks = [];
+      let size = 0;
+      for await (const chunk of req) {
+        size += chunk.length;
+        if (size > 131072) {
+          res.writeHead(413, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+          res.end(JSON.stringify({ error: "Request body too large" }));
+          return;
+        }
+        chunks.push(chunk);
+      }
+      const body = Buffer.concat(chunks);
       const request = new Request(url, {
         method: req.method,
-        headers: { ...req.headers, origin: req.headers.origin || url.origin },
+        headers: req.headers,
         ...(req.method !== "GET" ? { body } : {}),
       });
       const result = await onRequest({

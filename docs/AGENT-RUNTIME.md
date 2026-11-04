@@ -4,7 +4,7 @@ This release provides integration endpoints, not a connected model or autonomous
 
 ## Seats and roles
 
-`src/model.js` is authoritative: 19 roles × 4 seats. Strategy: director/orchestrator. Intelligence: account research, contacts, hiring and qualification. Outbound: email, LinkedIn, calling, WhatsApp, official forms. Creative: sales copy and portfolio selection. Pipeline: SDR, account executive and proposals. Operations: eligibility review, RevOps and analytics. Retention: client success. Each role has separate employee IDs, assignments and task progress. Provision additional external workers against free seats as workload grows; four UI seats do not mean four model processes exist.
+`src/model.js` is authoritative: 32 roles × 4 seats (128 employees). Data lab: data research, extraction, quality and intent research. Strategy: director/orchestrator. Intelligence: account research, contacts, hiring and qualification. Outbound: email, LinkedIn, calling, WhatsApp, official forms. Creative: sales copy and portfolio selection. Pipeline: SDR, account executive and proposals. Operations: eligibility review, RevOps and analytics. Additional specialties include territory planning, business development, sales engineering, enablement, partnerships, account management, deliverability, automation and deal desk. Retention: client success. Each role has separate employee IDs, assignments and task progress. Provision additional external workers against free seats as workload grows; four UI seats do not mean four model processes exist.
 
 ## Runtime API
 

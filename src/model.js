@@ -24,6 +24,19 @@ export const CHANNELS = [
   "Other",
 ];
 export const ROLES = [
+  ['dataresearch','Data researcher','Discover evidence-backed markets, companies and prospect sources','Data lab'],
+  ['extraction','Data extraction specialist','Extract structured company and contact fields from approved sources','Data lab'],
+  ['dataquality','Data quality analyst','Deduplicate entities, resolve conflicts and validate provenance','Data lab'],
+  ['intent','Buying-signal analyst','Monitor dated hiring, funding and relevant demand evidence','Intelligence'],
+  ['territory','Territory strategist','Design market coverage and prioritize account segments','Strategy'],
+  ['bdr','Business development rep','Develop new outbound opportunities and agency partnerships','Pipeline'],
+  ['salesengineer','Solutions engineer','Map technical requirements, demonstrations and solution feasibility','Pipeline'],
+  ['enablement','Sales enablement lead','Build playbooks, train specialists and review message quality','Operations'],
+  ['partnerships','Partnership manager','Develop white-label channel relationships and joint delivery plans','Retention'],
+  ['accountmanager','Account manager','Maintain client relationships, renewals and expansion plans','Retention'],
+  ['deliverability','Deliverability specialist','Review sender health, authentication and bounce evidence','Operations'],
+  ['automation','Sales automation engineer','Maintain approved workflows, integrations and agent handoffs','Data lab'],
+  ['dealdesk','Deal desk specialist','Review commercial terms, pricing and scope acceptance','Pipeline'],
   [
     "orchestrator",
     "Sales director",

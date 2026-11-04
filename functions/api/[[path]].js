@@ -1,8 +1,13 @@
 import { STAGES, CHANNELS, EMPLOYEES } from "../../src/model.js";
+import { validOfficeConfig } from "../office-config.js";
+import { readObjectBody as body, RequestError } from "../request-body.js";
 const headers = {
   "Content-Type": "application/json",
   "Cache-Control": "no-store",
   "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "no-referrer",
+  "X-Frame-Options": "DENY",
+  "Strict-Transport-Security": "max-age=31536000",
 };
 const json = (data, status = 200, extra = {}) =>
   new Response(JSON.stringify(data), {
@@ -31,13 +36,6 @@ async function authenticated(request, env) {
     .bind(await hash(id))
     .first();
   return session?.expires > Date.now();
-}
-async function body(request) {
-  if (Number(request.headers.get("Content-Length") || 0) > 32000)
-    throw new Error("Body too large");
-  const text = await request.text();
-  if (text.length > 32000) throw new Error("Body too large");
-  return JSON.parse(text);
 }
 export async function onRequest({ request, env, params }) {
   try {
@@ -140,6 +138,26 @@ export async function onRequest({ request, env, params }) {
         "Set-Cookie":
           "trayaam_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0",
       });
+    }
+    if (path === "office" && method === "GET") {
+      const row = await env.DB.prepare("SELECT data FROM metadata WHERE id=?")
+        .bind("office-v2").first();
+      return json(row ? JSON.parse(row.data) : { config: null, version: 0 });
+    }
+    if (path === "office" && method === "PATCH") {
+      const b = await body(request, 131072);
+      if (!Number.isSafeInteger(b.version) || b.version < 0 || b.version >= Number.MAX_SAFE_INTEGER ||
+          Object.keys(b).some((k) => !["config", "version"].includes(k)) ||
+          !validOfficeConfig(b.config))
+        return json({ error: "Invalid office configuration" }, 400);
+      const next = { config: b.config, version: b.version + 1 };
+      // One SQL statement handles first creation and subsequent compare-and-swap.
+      const result = await env.DB.prepare(
+        "INSERT INTO metadata(id,data) SELECT ?,? WHERE ?=0 OR EXISTS (SELECT 1 FROM metadata WHERE id=?) ON CONFLICT(id) DO UPDATE SET data=excluded.data WHERE json_extract(metadata.data,'$.version')=?",
+      ).bind("office-v2", JSON.stringify(next), b.version, "office-v2", b.version).run();
+      if (!result.meta.changes)
+        return json({ error: "Office changed on another device. Refresh and retry." }, 409);
+      return json(next);
     }
     if (path === "snapshot" && method === "GET") {
       const [records, metadata, events, tasks] = await Promise.all([
@@ -353,17 +371,14 @@ export async function onRequest({ request, env, params }) {
         source: "Manual observation; not a sending action",
       };
       if (b.outcome === "Opted out") {
-        prospect.suppressed = true;
-        prospect.stage = "Do not contact";
-        prospect.suppressionReason = b.note;
         await env.DB.batch([
           env.DB.prepare("INSERT INTO events VALUES(?,?)").bind(
             event.id,
             JSON.stringify(event),
           ),
           env.DB.prepare(
-            "UPDATE records SET data=?,version=version+1 WHERE id=?",
-          ).bind(JSON.stringify(prospect), b.prospectId),
+            "UPDATE records SET data=json_set(data,'$.suppressed',json('true'),'$.stage','Do not contact','$.suppressionReason',?),version=version+1 WHERE id=?",
+          ).bind(b.note, b.prospectId),
         ]);
       } else
         await env.DB.prepare("INSERT INTO events VALUES(?,?)")
@@ -463,6 +478,7 @@ export async function onRequest({ request, env, params }) {
     }
     return json({ error: "Not found" }, 404);
   } catch (error) {
+    if (error instanceof RequestError) return json({ error: error.message }, error.status);
     return json(
       {
         error:

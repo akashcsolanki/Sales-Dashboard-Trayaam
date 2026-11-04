@@ -9,7 +9,7 @@ import {
   safeUrl,
 } from "../src/model.js";
 test("four independent seats for each role", () => {
-  assert.equal(new Set(EMPLOYEES.map((e) => e.id)).size, 76);
+  assert.equal(new Set(EMPLOYEES.map((e) => e.id)).size, 128);
   for (const [role] of ROLES)
     assert.equal(EMPLOYEES.filter((e) => e.role === role).length, 4);
 });

@@ -13,6 +13,10 @@ export async function api(path, body, method) {
       "Backend unavailable. Start the Pages development server or finish cloud deployment.",
     );
   }
-  if (!response.ok) throw new Error(data.error || "Request failed");
+  if (!response.ok) {
+    const error = new Error(data.error || "Request failed");
+    error.status = response.status;
+    throw error;
+  }
   return data;
 }

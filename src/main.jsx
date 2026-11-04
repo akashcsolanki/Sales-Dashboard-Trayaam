@@ -59,6 +59,9 @@ import { api } from "./api";
 import "./style.css";
 import Drafts from "./Drafts";
 import SourceBrowser from "./SourceBrowser";
+import BrandLogo from "./BrandLogo";
+import "./brand.css";
+const SalesOffice = React.lazy(() => import("./office/Office"));
 const NAV = [
   ["Overview", LayoutDashboard],
   ["Prospects", Users],
@@ -127,15 +130,64 @@ function App() {
     [busy, setBusy] = useState(false),
     [filters, setFilters] = useState({ search: "", priority: "" });
   const main = useRef();
+  const workspaceEpoch = useRef(0),
+    selectionRequest = useRef(0),
+    saving = useRef(false),
+    taskDialog = useRef(0),
+    snapshotRevision = useRef(0);
+  function closeTask() {
+    taskDialog.current++;
+    setTaskOpen(false);
+  }
+  function openTask(agent = "") {
+    taskDialog.current++;
+    setTaskAgent(agent);
+    setTaskOpen(true);
+  }
+  function closeProspect() {
+    selectionRequest.current++;
+    setSelected(null);
+  }
+  function clearWorkspace() {
+    workspaceEpoch.current++;
+    closeProspect();
+    closeTask();
+    setTaskAgent("");
+    setMobile(false);
+    setData(null);
+    setAuth("out");
+    setToast("");
+    setFilters({ search: "", priority: "" });
+  }
+  function requestFailed(e) {
+    if (e.status === 401) {
+      setError(e.message);
+      clearWorkspace();
+    }
+    setToast(e.message);
+  }
   async function load() {
+    const epoch = workspaceEpoch.current,
+      revision = snapshotRevision.current;
     try {
       const d = await api("snapshot");
+      if (
+        epoch !== workspaceEpoch.current ||
+        revision !== snapshotRevision.current
+      )
+        return;
       setData(d);
       setAuth("in");
       setError("");
     } catch (e) {
+      if (
+        epoch !== workspaceEpoch.current ||
+        revision !== snapshotRevision.current
+      )
+        return;
       setError(e.message);
-      setAuth("out");
+      if (e.status === 401 || !data) clearWorkspace();
+      else setToast(e.message);
     }
   }
   useEffect(() => {
@@ -168,11 +220,23 @@ function App() {
   }, [tab, auth]);
   useEffect(() => {
     if (auth !== "in") return;
+    const epoch = workspaceEpoch.current;
     const timer = setInterval(() => {
-      if (!document.hidden && !selected && !taskOpen)
+      if (!document.hidden && !selected && !taskOpen) {
+        const revision = snapshotRevision.current;
         api("snapshot")
-          .then(setData)
-          .catch(() => {});
+          .then((d) => {
+            if (
+              epoch === workspaceEpoch.current &&
+              revision === snapshotRevision.current
+            )
+              setData(d);
+          })
+          .catch((e) => {
+            if (epoch === workspaceEpoch.current && e.status === 401)
+              requestFailed(e);
+          });
+      }
     }, 30000);
     return () => clearInterval(timer);
   }, [auth, selected, taskOpen]);
@@ -187,65 +251,133 @@ function App() {
     setFilters({ search: "", priority: "" });
   }
   async function openProspect(p) {
+    const request = ++selectionRequest.current,
+      epoch = workspaceEpoch.current;
     try {
       const full = await api("prospects/" + p.id);
+      if (
+        request !== selectionRequest.current ||
+        epoch !== workspaceEpoch.current
+      )
+        return;
       setSelected(full);
     } catch (e) {
-      setToast(e.message);
+      if (
+        request === selectionRequest.current &&
+        epoch === workspaceEpoch.current
+      )
+        requestFailed(e);
     }
   }
   async function saveProspect(patch) {
+    if (saving.current || !selected) return null;
+    saving.current = true;
+    snapshotRevision.current++;
+    const current = selected,
+      request = selectionRequest.current,
+      epoch = workspaceEpoch.current;
     setBusy(true);
     try {
       const updated = await api(
-        "prospects/" + selected.id,
-        { ...patch, version: selected.version },
+        "prospects/" + current.id,
+        { ...patch, version: current.version },
         "PATCH",
       );
+      if (epoch !== workspaceEpoch.current) return null;
+      snapshotRevision.current++;
       setData((d) => ({
         ...d,
         prospects: d.prospects.map((p) => (p.id === updated.id ? updated : p)),
       }));
-      setSelected(updated);
+      if (request === selectionRequest.current)
+        setSelected((p) => (p?.id === updated.id ? updated : p));
       setToast("Prospect saved across devices");
+      return updated;
     } catch (e) {
-      setToast(e.message);
+      if (epoch === workspaceEpoch.current) requestFailed(e);
+      return null;
     } finally {
+      saving.current = false;
       setBusy(false);
     }
   }
   async function addEvent(event) {
+    snapshotRevision.current++;
+    const epoch = workspaceEpoch.current;
     try {
       const saved = await api("events", event);
+      if (epoch !== workspaceEpoch.current) return false;
+      snapshotRevision.current++;
       setData((d) => ({ ...d, events: [saved, ...d.events] }));
+      if (event.outcome === "Opted out") {
+        // Reflect suppression immediately; refetch the authoritative version.
+        const suppress = (p) =>
+          p.id === event.prospectId
+            ? {
+                ...p,
+                suppressed: true,
+                stage: "Do not contact",
+                suppressionReason: event.note,
+              }
+            : p;
+        setData((d) => ({ ...d, prospects: d.prospects.map(suppress) }));
+        setSelected((p) => (p ? suppress(p) : p));
+        try {
+          const updated = await api("prospects/" + event.prospectId);
+          if (epoch !== workspaceEpoch.current) return false;
+          setData((d) => ({
+            ...d,
+            prospects: d.prospects.map((p) =>
+              p.id === updated.id ? updated : p,
+            ),
+          }));
+          setSelected((p) => (p?.id === updated.id ? updated : p));
+        } catch (e) {
+          if (epoch === workspaceEpoch.current) requestFailed(e);
+          return true; // The activity itself was persisted; do not duplicate it.
+        }
+      }
       setToast("Activity recorded");
+      return true;
     } catch (e) {
-      setToast(e.message);
+      if (epoch === workspaceEpoch.current) requestFailed(e);
+      return false;
     }
   }
   async function createTask(task) {
+    snapshotRevision.current++;
+    const epoch = workspaceEpoch.current,
+      dialog = taskDialog.current;
     try {
       const saved = await api("tasks", task);
+      if (epoch !== workspaceEpoch.current) return false;
+      snapshotRevision.current++;
       setData((d) => ({ ...d, tasks: [saved, ...d.tasks] }));
-      setTaskOpen(false);
+      if (dialog === taskDialog.current) closeTask();
       setToast("Task added to the queue");
+      return true;
     } catch (e) {
-      setToast(e.message);
+      if (epoch === workspaceEpoch.current) requestFailed(e);
+      return false;
     }
   }
   async function changeTask(task, status) {
+    snapshotRevision.current++;
+    const epoch = workspaceEpoch.current;
     try {
       const saved = await api(
         "tasks/" + task.id,
         { status, version: task.version },
         "PATCH",
       );
+      if (epoch !== workspaceEpoch.current) return;
+      snapshotRevision.current++;
       setData((d) => ({
         ...d,
         tasks: d.tasks.map((t) => (t.id === saved.id ? saved : t)),
       }));
     } catch (e) {
-      setToast(e.message);
+      if (epoch === workspaceEpoch.current) requestFailed(e);
     }
   }
   function download() {
@@ -261,7 +393,7 @@ function App() {
   if (auth === "loading")
     return (
       <div className="loading">
-        <span className="brand-symbol">t.</span>
+        <BrandLogo />
         <p>Opening your Sales Office…</p>
       </div>
     );
@@ -277,10 +409,7 @@ function App() {
             navigate("Overview");
           }}
         >
-          <span className="brand-symbol">t.</span>
-          <span>
-            trayaam<span className="brand-caption">SALES WORKSPACE</span>
-          </span>
+          <BrandLogo caption="SALES OFFICE" />
         </a>
         <div className="workspace">
           <span className="workspace-avatar">T</span>
@@ -301,7 +430,7 @@ function App() {
               <span>{name}</span>
               {name === "Prospects" && <small>{fmt(stats.total)}</small>}
               {name === "Hiring signals" && <i className="nav-dot" />}
-              {name === "Sales Office" && <Badge>76</Badge>}
+              {name === "Sales Office" && <Badge>{EMPLOYEES.length}</Badge>}
             </button>
           ))}
         </nav>
@@ -316,9 +445,12 @@ function App() {
           <button
             className="profile"
             onClick={async () => {
-              await api("logout", {});
-              setAuth("out");
-              setData(null);
+              try {
+                await api("logout", {});
+                clearWorkspace();
+              } catch (e) {
+                requestFailed(e);
+              }
             }}
           >
             <span className="avatar">AS</span>
@@ -368,9 +500,9 @@ function App() {
               </div>
               <h1>
                 {tab === "Overview"
-                  ? "A clear view. A stronger pipeline."
+                  ? "Your growth, in focus."
                   : tab === "Sales Office"
-                    ? "Your people. One shared mission."
+                    ? "The partnership studio."
                     : tab === "Hiring signals"
                       ? "Turn hiring signals into conversations."
                       : tab === "World view"
@@ -379,9 +511,9 @@ function App() {
               </h1>
               <p>
                 {tab === "Overview"
-                  ? "Your outreach, intelligence and sales team. Working in one place."
+                  ? "Intelligence, relationships and your next opportunity. One workspace."
                   : tab === "Sales Office"
-                    ? "A dedicated specialist for every step. Four seats for every role."
+                    ? "An interactive headquarters for your entire sales organization."
                     : tab === "Hiring signals"
                       ? "Your priority agency employers, with dated evidence and candidate fit."
                       : "Keep every relationship moving with context, clarity and purpose."}
@@ -407,8 +539,7 @@ function App() {
               <button
                 className="btn primary"
                 onClick={() => {
-                  setTaskAgent("");
-                  setTaskOpen(true);
+                  openTask();
                 }}
               >
                 <Plus size={16} />
@@ -618,7 +749,8 @@ function App() {
                   </div>
                   <h3>Specialists, ready for the next move.</h3>
                   <p>
-                    19 specialties. 76 dedicated seats.
+                    {ROLES.length} specialties. {EMPLOYEES.length} dedicated
+                    seats.
                     <br />
                     Research, outreach, closing and beyond.
                   </p>
@@ -747,14 +879,19 @@ function App() {
             </>
           )}
           {tab === "Sales Office" && (
-            <SalesOffice
-              tasks={tasks}
-              create={(id) => {
-                setTaskAgent(id || "");
-                setTaskOpen(true);
-              }}
-              changeTask={changeTask}
-            />
+            <React.Suspense
+              fallback={
+                <div className="loading-office">Opening the 3D studio…</div>
+              }
+            >
+              <SalesOffice
+                tasks={tasks}
+                create={(id) => {
+                  openTask(id || "");
+                }}
+                changeTask={changeTask}
+              />
+            </React.Suspense>
           )}
           {tab === "World view" && (
             <World
@@ -788,7 +925,7 @@ function App() {
         <ProspectDrawer
           key={selected.id}
           p={selected}
-          onClose={() => setSelected(null)}
+          onClose={closeProspect}
           save={saveProspect}
           busy={busy}
           events={events.filter((e) => e.prospectId === selected.id)}
@@ -800,7 +937,7 @@ function App() {
           agent={taskAgent}
           prospects={prospects}
           tasks={tasks}
-          onClose={() => setTaskOpen(false)}
+          onClose={closeTask}
           onSubmit={createTask}
         />
       )}
@@ -816,7 +953,7 @@ function Login({ onLogin, error }) {
       <div className="login-art">
         <Gradient />
         <span className="brand light">
-          <span className="brand-symbol">t.</span>trayaam
+          <BrandLogo />
         </span>
         <div>
           <div className="eyebrow">THE PARTNERSHIP WORKSPACE</div>
@@ -909,6 +1046,11 @@ function PanelHeader({ title, note, action, onClick }) {
 function ProspectTable({ rows, all, filters, setFilters, onSelect, onExport }) {
   const [page, setPage] = useState(0);
   useEffect(() => setPage(0), [filters]);
+  useEffect(
+    () =>
+      setPage((p) => Math.min(p, Math.max(0, Math.ceil(rows.length / 25) - 1))),
+    [rows.length],
+  );
   const set = (k, v) => setFilters((f) => ({ ...f, [k]: v }));
   return (
     <section className="panel animate-in">
@@ -1214,365 +1356,6 @@ function Hiring({ rows, onSelect }) {
         <Empty title="No verified matches in this view">
           Use all signals to review the retained shortlist.
         </Empty>
-      )}
-    </>
-  );
-}
-function SalesOffice({ tasks, create, changeTask }) {
-  const [team, setTeam] = useState("Outbound"),
-    [view, setView] = useState("room"),
-    [employee, setEmployee] = useState(null);
-  const recent = tasks.filter(
-      (t) => t.heartbeatAt && Date.now() - Date.parse(t.heartbeatAt) < 90000,
-    ),
-    connected = new Set(recent.map((t) => t.runtimeId)).size,
-    active = recent.filter((t) => t.status === "Working"),
-    queued = tasks.filter((t) => t.status === "Queued");
-  const specialties = ROLES.filter((r) => r[3] === team);
-  return (
-    <>
-      <div className="office-toolbar animate-in">
-        <div className="office-status">
-          <span className="status-dot amber-dot" />
-          {connected ? "AI RUNTIME CONNECTED" : "AI RUNTIME DISCONNECTED"}{" "}
-          <span className="muted">
-            {connected
-              ? "Heartbeat received within 90 seconds"
-              : "Connect your orchestrator to activate workers"}
-          </span>
-        </div>
-        <div className="segmented">
-          <button
-            className={view === "room" ? "selected" : ""}
-            onClick={() => setView("room")}
-          >
-            Office floor
-          </button>
-          <button
-            className={view === "roster" ? "selected" : ""}
-            onClick={() => setView("roster")}
-          >
-            Team roster
-          </button>
-        </div>
-      </div>
-      <div className="office-metrics">
-        <span>
-          <b>76</b> dedicated seats
-        </span>
-        <span>
-          <b>{active.length}</b> working
-        </span>
-        <span>
-          <b>{queued.length}</b> queued tasks
-        </span>
-        <span>
-          <b>{connected}</b> connected runtimes
-        </span>
-      </div>
-      <div className="office-layout">
-        <div>
-          <div className="team-tabs">
-            {[...new Set(ROLES.map((r) => r[3]))].map((t) => (
-              <button
-                key={t}
-                className={team === t ? "selected" : ""}
-                onClick={() => setTeam(t)}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-          {view === "room" ? (
-            <section className="office-room">
-              <div className="office-windows">
-                <span />
-                <span />
-                <span />
-                <span />
-                <span />
-                <span />
-                <span />
-              </div>
-              <div className="office-wall">
-                <span className="wall-logo">
-                  trayaam<span>SALES & PARTNERSHIPS</span>
-                </span>
-                <div className="wall-screen">
-                  <i />
-                  MISSION CONTROL
-                  <small>
-                    {active.length} active · {queued.length} queued
-                  </small>
-                </div>
-              </div>
-              <div className="office-floor">
-                <div className="office-boardroom">
-                  <div className="conference-table">
-                    <span>STRATEGY & SYNC</span>
-                  </div>
-                  <i />
-                  <i />
-                  <i />
-                  <i />
-                </div>
-                <div className="desk-pods">
-                  {specialties.map(([role, title]) => (
-                    <div className="desk-pod" key={role}>
-                      <span className="pod-label">{title}</span>
-                      <div className="desks">
-                        {EMPLOYEES.filter((e) => e.role === role).map((e) => {
-                          const task = tasks.find(
-                            (t) =>
-                              t.agentId === e.id &&
-                              !["Done", "Cancelled"].includes(t.status),
-                          );
-                          return (
-                            <button
-                              key={e.id}
-                              className={"desk " + (task ? "occupied" : "")}
-                              onClick={() => setEmployee(e)}
-                              aria-label={`${e.name}: ${task?.status || "Idle · not connected"}`}
-                            >
-                              <span className="monitor">
-                                <i />
-                                <i />
-                                <i />
-                              </span>
-                              <span className="desktop" />
-                              <span className="chair" />
-                              <span className="employee-person">
-                                <i />
-                              </span>
-                              <span className="desk-number">
-                                {e.id.split("-").at(-1).padStart(2, "0")}
-                              </span>
-                              <span className="desk-tooltip">
-                                {e.name}
-                                <small>
-                                  {task?.title || "Idle · runtime disconnected"}
-                                </small>
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="office-lounge">
-                  <span className="plant">✳</span>
-                  <div className="sofa" />
-                  <div className="coffee-table" />
-                  <span className="plant">✳</span>
-                </div>
-                <span className="floor-caption">
-                  {team.toUpperCase()} DIVISION · CLICK A DESK TO INSPECT
-                </span>
-              </div>
-            </section>
-          ) : (
-            <div className="roster-grid">
-              {EMPLOYEES.filter((e) => e.team === team).map((e) => (
-                <button
-                  className="panel employee-card"
-                  key={e.id}
-                  onClick={() => setEmployee(e)}
-                >
-                  <span className="avatar">
-                    <Bot size={20} />
-                  </span>
-                  <h3>{e.name}</h3>
-                  <p>{e.mission}</p>
-                  <Badge>
-                    {tasks.find(
-                      (t) =>
-                        t.agentId === e.id &&
-                        !["Done", "Cancelled"].includes(t.status),
-                    )?.status || "Idle · not connected"}
-                  </Badge>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        <aside className="panel capacity">
-          <PanelHeader title="Capacity planner" />
-          <p>
-            Four specialists per role. Assign a free seat when the queue grows.
-          </p>
-          {specialties.map(([role, title]) => {
-            const roleTasks = tasks.filter(
-              (t) =>
-                t.role === role && !["Done", "Cancelled"].includes(t.status),
-            );
-            return (
-              <div className="capacity-role" key={role}>
-                <strong>{title}</strong>
-                <div className="capacity-seats">
-                  {EMPLOYEES.filter((e) => e.role === role).map((e) => (
-                    <button
-                      key={e.id}
-                      className={
-                        roleTasks.some((t) => t.agentId === e.id) ? "taken" : ""
-                      }
-                      onClick={() => setEmployee(e)}
-                      aria-label={e.name}
-                    >
-                      <Bot size={17} />
-                    </button>
-                  ))}
-                </div>
-                <small>
-                  {new Set(roleTasks.map((t) => t.agentId)).size}/4 reserved ·{" "}
-                  {roleTasks.length} tasks
-                </small>
-              </div>
-            );
-          })}
-          <div className="capacity-note">
-            <ShieldCheck size={16} />
-            Outbound actions require separate approval. Queuing a task does not
-            send outreach.
-          </div>
-        </aside>
-      </div>
-      <section className="panel task-section">
-        <PanelHeader
-          title="Task control"
-          note="Assignments, progress and handoffs for every specialist."
-          action="Create task"
-          onClick={() => create()}
-        />
-        {tasks.length ? (
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Task</th>
-                  <th>Employee</th>
-                  <th>Status</th>
-                  <th>Progress</th>
-                  <th>Due</th>
-                  <th>Update</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tasks.map((t) => (
-                  <tr key={t.id}>
-                    <td>
-                      <strong>{t.title}</strong>
-                      <small>{t.description}</small>
-                    </td>
-                    <td>
-                      {EMPLOYEES.find((e) => e.id === t.agentId)?.name ||
-                        "Unassigned"}
-                    </td>
-                    <td>
-                      <Badge
-                        tone={
-                          t.status === "Blocked"
-                            ? "red"
-                            : t.status === "Done"
-                              ? "green"
-                              : ""
-                        }
-                      >
-                        {t.status === "Working" &&
-                        (!t.heartbeatAt ||
-                          Date.now() - Date.parse(t.heartbeatAt) > 90000)
-                          ? "Stale heartbeat"
-                          : t.status}
-                      </Badge>
-                    </td>
-                    <td>
-                      <div className="progress-track">
-                        <span style={{ width: t.progress + "%" }} />
-                      </div>
-                      <small>
-                        {t.progress}% · {t.step || "Awaiting runtime"}
-                      </small>
-                      {t.output && (
-                        <details>
-                          <summary>Task output</summary>
-                          <p style={{ whiteSpace: "pre-wrap", maxWidth: 280 }}>
-                            {t.output}
-                          </p>
-                        </details>
-                      )}
-                    </td>
-                    <td>{t.due || "Not set"}</td>
-                    <td>
-                      <Select
-                        label={"Update " + t.title}
-                        value={t.status}
-                        onChange={(status) => changeTask(t, status)}
-                        options={[
-                          "Queued",
-                          "Blocked",
-                          "Awaiting review",
-                          "Done",
-                          "Cancelled",
-                        ]}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <Empty title="A clear desk. A focused start.">
-            Create a task and assign a specialist. Work begins when the AI
-            runtime is connected.
-          </Empty>
-        )}
-      </section>
-      {employee && (
-        <div className="modal-backdrop" onClick={() => setEmployee(null)}>
-          <section
-            className="modal employee-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Employee details"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              className="icon modal-close"
-              aria-label="Close employee"
-              onClick={() => setEmployee(null)}
-            >
-              <X size={20} />
-            </button>
-            <span className="employee-avatar">
-              <Bot size={33} />
-            </span>
-            <div className="eyebrow">
-              {employee.team} / SEAT {employee.id.split("-").at(-1)}
-            </div>
-            <h2>{employee.name}</h2>
-            <p>{employee.mission}</p>
-            <Badge>Runtime disconnected</Badge>
-            <div className="employee-info">
-              <strong>Role boundaries</strong>
-              <p>
-                Use recorded sources, preserve uncertainty, keep a task log and
-                hand off to the next specialist. No sending or applications
-                without explicit approval.
-              </p>
-            </div>
-            <button
-              className="btn primary"
-              onClick={() => {
-                create(employee.id);
-                setEmployee(null);
-              }}
-            >
-              Assign task
-              <Plus size={15} />
-            </button>
-          </section>
-        </div>
       )}
     </>
   );
@@ -1999,7 +1782,16 @@ function ProspectDrawer({ p, onClose, save, busy, events, addEvent }) {
     [channel, setChannel] = useState(
       p.channel === "Unassigned" ? "Email" : p.channel,
     );
-  const dialog = useRef(null);
+  const dialog = useRef(null),
+    dirty = useRef(false),
+    editRevision = useRef(0),
+    activityPending = useRef(false);
+  const [recording, setRecording] = useState(false);
+  useEffect(() => {
+    if (!dirty.current) setForm({ ...p });
+    else if (p.suppressed)
+      setForm((f) => ({ ...f, suppressed: true, stage: "Do not contact" }));
+  }, [p]);
   useEffect(() => {
     const last = document.activeElement;
     dialog.current?.focus();
@@ -2026,7 +1818,11 @@ function ProspectDrawer({ p, onClose, save, busy, events, addEvent }) {
       last?.focus();
     };
   }, []);
-  const field = (key, value) => setForm((f) => ({ ...f, [key]: value }));
+  const field = (key, value) => {
+    dirty.current = true;
+    editRevision.current++;
+    setForm((f) => ({ ...f, [key]: value }));
+  };
   return (
     <div className="drawer-backdrop" onClick={onClose}>
       <aside
@@ -2112,6 +1908,8 @@ function ProspectDrawer({ p, onClose, save, busy, events, addEvent }) {
                 className="edit-form"
                 onSubmit={(e) => {
                   e.preventDefault();
+                  if (busy) return;
+                  const revision = editRevision.current;
                   save({
                     stage: form.stage,
                     channel: form.channel,
@@ -2122,6 +1920,11 @@ function ProspectDrawer({ p, onClose, save, busy, events, addEvent }) {
                     value: Number(form.value) || 0,
                     suppressed: form.suppressed,
                     eligibility: form.eligibility,
+                  }).then((updated) => {
+                    if (updated && revision === editRevision.current) {
+                      dirty.current = false;
+                      setForm({ ...updated });
+                    }
                   });
                 }}
               >
@@ -2223,6 +2026,10 @@ function ProspectDrawer({ p, onClose, save, busy, events, addEvent }) {
                 className="edit-form"
                 onSubmit={(e) => {
                   e.preventDefault();
+                  if (activityPending.current) return;
+                  activityPending.current = true;
+                  setRecording(true);
+                  const submittedNote = note;
                   addEvent({
                     prospectId: p.id,
                     companyName: p.name,
@@ -2230,8 +2037,17 @@ function ProspectDrawer({ p, onClose, save, busy, events, addEvent }) {
                     outcome,
                     channel,
                     note,
-                  });
-                  setNote("");
+                  })
+                    .then((saved) => {
+                      if (saved)
+                        setNote((current) =>
+                          current === submittedNote ? "" : current,
+                        );
+                    })
+                    .finally(() => {
+                      activityPending.current = false;
+                      setRecording(false);
+                    });
                 }}
               >
                 <h3>Record an activity</h3>
@@ -2269,8 +2085,8 @@ function ProspectDrawer({ p, onClose, save, busy, events, addEvent }) {
                     rows="4"
                   />
                 </label>
-                <button className="btn primary">
-                  Record activity
+                <button className="btn primary" disabled={recording}>
+                  {recording ? "Recording…" : "Record activity"}
                   <Plus size={15} />
                 </button>
               </form>
@@ -2461,7 +2277,9 @@ function TaskModal({ agent, prospects, tasks, onClose, onSubmit }) {
     [description, setDescription] = useState(""),
     [prospectId, setProspectId] = useState(""),
     [due, setDue] = useState("");
-  const ref = useRef();
+  const ref = useRef(),
+    pending = useRef(false);
+  const [submitting, setSubmitting] = useState(false);
   useEffect(() => {
     ref.current?.focus();
     const fn = (e) => {
@@ -2494,6 +2312,9 @@ function TaskModal({ agent, prospects, tasks, onClose, onSubmit }) {
         onClick={(e) => e.stopPropagation()}
         onSubmit={(e) => {
           e.preventDefault();
+          if (pending.current) return;
+          pending.current = true;
+          setSubmitting(true);
           onSubmit({
             title,
             description,
@@ -2503,6 +2324,9 @@ function TaskModal({ agent, prospects, tasks, onClose, onSubmit }) {
             due,
             status: "Queued",
             progress: 0,
+          }).finally(() => {
+            pending.current = false;
+            setSubmitting(false);
           });
         }}
       >
@@ -2583,6 +2407,7 @@ function TaskModal({ agent, prospects, tasks, onClose, onSubmit }) {
           <textarea
             required
             rows="3"
+            maxLength={10000}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Expected output, sources to check and handoff destination…"
@@ -2591,8 +2416,8 @@ function TaskModal({ agent, prospects, tasks, onClose, onSubmit }) {
         <div className="notice">
           Tasks queue now. Execution requires the AI runtime connection.
         </div>
-        <button className="btn primary">
-          Create assignment
+        <button className="btn primary" disabled={submitting}>
+          {submitting ? "Creating…" : "Create assignment"}
           <ArrowRight size={16} />
         </button>
       </form>
