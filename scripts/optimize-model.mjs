@@ -17,4 +17,3 @@ const document=await io.read(input);
 await document.transform(dedup(),weld(),simplify({simplifier:MeshoptSimplifier,ratio,error:.003}),resample(),prune(),textureCompress({encoder:sharp,targetFormat:'webp',resize:[2048,2048],quality:88}),meshopt({encoder:MeshoptEncoder,level:'high'}));
 await io.write(destination,document);
 console.log(JSON.stringify({inputBytes:statSync(input).size,outputBytes:statSync(destination).size,animations:document.getRoot().listAnimations().map(a=>a.getName()),skins:document.getRoot().listSkins().length}));
-
