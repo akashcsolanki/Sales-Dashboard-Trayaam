@@ -39,3 +39,32 @@ Use case: stylized-concept. Asset type: unique character portrait atlas 8 of 8 f
 ## Architectural reference
 
 Use case: stylized-concept. Asset type: architectural reference for original playable Trayaam sales office. An exceptionally beautiful premium 3D life-simulation game cutaway office, isometric dollhouse view, generous warm daylight, architectural visualization quality. One complete floor with eight clearly distinct departmental zones around a generous central circulation spine: research library with books and data screens; data lab with paired workbenches; outbound sales lounge with small acoustic call booths and individual desks; client discovery suite with oval meeting table; executive strategy boardroom; creative studio with inspiration pinboards; operations control room with wall dashboards; partnership lounge with conversational seating. Low partial glass partitions, fluted ivory walls, real warm oak, brushed champagne brass, muted sage and plum upholstery, curved desks, rounded furniture, indoor trees, sculptural pendants, skyline glazing, refined rugs. Cohesive charcoal/gold/ivory Trayaam palette. Populate lightly with distinct professional adult women and men, majority women, original game characters. Keep rooms legible, realistic walking aisles, well-spaced furniture. No text, logos, labels, UI overlays, diamonds or existing game assets. High quality tactile materials and contact shadows, not a flat diagram, not plastic toy blocks.
+
+
+## Image-to-3D reference update — November 2026
+
+Built-in GPT image generation (no API-key or CLI fallback) created four full-body A-pose character inputs, three isolated furniture inputs, and eight revised 16-person casting atlases. The production WebP copies are in public/office/model-references/ and public/office/cast-v2-1.webp through cast-v2-8.webp. Raw PNG inputs remain ignored under .private/model-inputs/ and .private/recast-v2/. No prospect data was supplied. These are fictional adults. Original agency logos were retained, not generated.
+
+The following recorded subject briefs were expanded with a consistent premium original stylized 3D rendering, full-body unobstructed A-pose, neutral studio background, anatomically clear separated limbs, and no text/watermarks for the character model inputs. Furniture references used an isolated object, physically plausible construction, full view, neutral background and no text/watermarks. The character references preserve the selected illustrated identity rather than copying a game character.
+
+- ananya: the woman in row 1 column 1: South Asian woman, dark wavy hair in loose low updo, charcoal blazer, champagne blouse, tailored charcoal trousers, simple black loafers
+- meera: the woman in row 1 column 2: woman with beige hijab, plum blazer, ivory blouse, tailored plum trousers, closed-toe ivory flats
+- kavya: the woman in row 1 column 4: East Asian woman, sleek black bob, deep teal bow-neck blouse, tailored warm ivory vest and trousers, dark teal flats
+- arjun: the man in row 2 column 2: South Asian man, wavy dark hair and neat beard, charcoal suit with ivory shirt, dark leather shoes
+
+- workstation: ONE complete premium executive desk only: sculpted capsule-shaped pale oak desktop, fluted oak pedestal on one side, slim brushed champagne brass leg on other side. No computer, chair, props or floor. Visible underside and supports, physically plausible construction.
+- chair: ONE complete premium ergonomic office chair: warm ivory woven upholstered seat and curved back, muted sage cushion, champagne brass five-star base, black casters, slim upholstered armrests. No desk, no person, no floor.
+- sofa: ONE complete premium curved three-seat office sofa: sculptural curved back, warm ivory boucle upholstery, plum accent cushions, brushed champagne brass plinth. No table, no people, no room, no floor.
+
+Revised atlases use a 4×4 grid of 16 distinct fictional adults: 12 women in the first three rows and four men in the last row; South Asian, East Asian, European and Middle Eastern appearances, light to medium skin tones, distinct facial features/hairstyles, ivory background, waist-up framing, tailored charcoal/champagne/teal/plum clothing, consistent original stylized 3D illustration, no text, logos or watermarks. Individual sheet direction:
+
+- Sheet 1: research analysts: tied-back waves, hijab, sleek bob, braided bun; charcoal, teal and plum tailoring
+- Sheet 2: intelligence specialists: long waves, precise bobs, neat braids, silk blouses and structured jackets
+- Sheet 3: outbound specialists: expressive smiles, ponytails, bobs, wavy shoulder-length hair, tailored smart casual
+- Sheet 4: client and technical specialists: sophisticated separates, contemporary eyewear, individual hairlines and face shapes
+- Sheet 5: operations professionals: mature and younger adults, salt-and-pepper hair, refined suits, understated jewelry
+- Sheet 6: creative professionals: asymmetric bobs, elegant curls, earth-tone separates, expressive individual features
+- Sheet 7: partnership specialists: scarves, formal and relaxed tailoring, short cuts, long waves, diverse ages
+- Sheet 8: leadership and commercial specialists: distinguished mature faces, silver bobs, chestnut curls, confident styling
+
+Meshy 6 Lite subsequently generated and textured actual GLB geometry from the seven isolated input images. This is separate from GPT image generation. See IMAGE-TO-3D.md and public/office/models/CREDITS.md for the free workflow, rigging limitations and attribution. The architectural concept remains a visual target; the live room is not a reconstruction of every detail in it.

@@ -26,3 +26,5 @@ Runtime connection counts and Working status derive from task heartbeats receive
 
 
 The 128 seats now have unique fictional full names (three women and one man per role) and image-generated character references. Treat stable employee IDs, not presentation names, as task identity. Department and platform workspace assignments are UI organization and capacity metadata; assigning an employee to a platform does not grant provider access or authorize sending. The office-v2 config persists optional platform overrides. See src/office/workspaces.js for the default role-to-platform map.
+
+Presentation update 12 November: studio-reference is a seventeenth known saved room, containing the existing four dataresearch seats. It adds no agent processes or sending permissions. Seven image-derived presentation models are bundled. Two character rigs are animated; two are unrigged pending a separate rigging solution. Runtime task identities and all existing integration limits remain unchanged.

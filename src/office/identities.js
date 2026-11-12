@@ -641,9 +641,6 @@ export const IDENTITIES = [
     "portrait": 127
   }
 ];
-// The first generated sheet uses interleaved casting; map its 12 women and 4 men to the roster explicitly.
-const firstSheetCells=[0,1,2,3,4,6,8,10,11,12,14,15,5,7,9,13];
-IDENTITIES.slice(0,16).forEach((identity,i)=>{identity.portrait=firstSheetCells[i];});
 export function identityAt(index) {
   const group=Math.floor(index/16), role=Math.floor((index%16)/4), seat=index%4;
   const castIndex=group*16+(seat===3?12+role:role*3+seat);
@@ -651,5 +648,5 @@ export function identityAt(index) {
 }
 export function portraitStyle(index) {
   const local = index % 16;
-  return { backgroundImage: `url(/office/cast-${Math.floor(index / 16) + 1}.webp)`, backgroundSize: "400% 400%", backgroundPosition: `${(local % 4) * 100 / 3}% ${Math.floor(local / 4) * 100 / 3}%` };
+  return { backgroundImage: `url(/office/cast-v2-${Math.floor(index / 16) + 1}.webp)`, backgroundSize: "400% 400%", backgroundPosition: `${(local % 4) * 100 / 3}% ${Math.floor(local / 4) * 100 / 3}%` };
 }

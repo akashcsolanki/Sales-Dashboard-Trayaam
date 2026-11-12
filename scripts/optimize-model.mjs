@@ -1,0 +1,20 @@
+import {NodeIO} from '@gltf-transform/core';
+import {ALL_EXTENSIONS} from '@gltf-transform/extensions';
+import {dedup,weld,simplify,resample,prune,textureCompress,meshopt} from '@gltf-transform/functions';
+import {MeshoptEncoder,MeshoptDecoder,MeshoptSimplifier} from 'meshoptimizer';
+import sharp from 'sharp';
+import {statSync} from 'node:fs';
+import path from 'node:path';
+const [input,output,ratioInput]=process.argv.slice(2);
+const ratio=ratioInput === undefined ? 0.65 : Number(ratioInput);
+if(!Number.isFinite(ratio)||ratio<.05||ratio>1)throw new Error("Simplification ratio must be between .05 and 1");
+if(!input||!output)throw new Error('Usage: node scripts/optimize-model.mjs input.glb public/office/models/name.glb');
+const destination=path.resolve(output), allowed=path.resolve('public/office/models')+path.sep;
+if(!destination.startsWith(allowed)||!/^[-a-z0-9]+\.glb$/.test(path.basename(destination)))throw new Error('Output must be a named GLB under public/office/models');
+await Promise.all([MeshoptEncoder.ready,MeshoptDecoder.ready,MeshoptSimplifier.ready]);
+const io=new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({'meshopt.decoder':MeshoptDecoder,'meshopt.encoder':MeshoptEncoder});
+const document=await io.read(input);
+await document.transform(dedup(),weld(),simplify({simplifier:MeshoptSimplifier,ratio,error:.003}),resample(),prune(),textureCompress({encoder:sharp,targetFormat:'webp',resize:[2048,2048],quality:88}),meshopt({encoder:MeshoptEncoder,level:'high'}));
+await io.write(destination,document);
+console.log(JSON.stringify({inputBytes:statSync(input).size,outputBytes:statSync(destination).size,animations:document.getRoot().listAnimations().map(a=>a.getName()),skins:document.getRoot().listSkins().length}));
+

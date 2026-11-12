@@ -19,14 +19,17 @@ export const PLATFORMS = [
   {id:'crm', name:'CRM & operations', description:'Pipeline, governance & client success', accent:'#b8b08c', kind:'operations'},
   {id:'creative', name:'Creative tools', description:'Copy, portfolio & sales enablement', accent:'#bf9caf', kind:'creative'},
 ];
-export const ROOM_KEYS = [...DEPARTMENTS.map(d=>d.id), ...PLATFORMS.map(p=>'platform-'+p.id)];
+export const MODEL_STUDIO = {id:"studio-reference",name:"The reference studio",team:"Reference studio",subtitle:"Four image-derived colleagues · original Trayaam characters",accent:"#c9a86a",kind:"lounge"};
+export const ROOM_KEYS = [MODEL_STUDIO.id,...DEPARTMENTS.map(d=>d.id), ...PLATFORMS.map(p=>'platform-'+p.id)];
 export function employeePlatform(employee, config = {}) {
   return config.employees?.[employee.id]?.platform || ({email:'email',deliverability:'email',linkedin:'linkedin',phone:'phone',whatsapp:'whatsapp',forms:'forms',copy:'creative',portfolio:'creative',enablement:'creative',dataresearch:'research',extraction:'research',dataquality:'research',intent:'research',research:'research',enrichment:'research',hiring:'research',qualification:'research'}[employee.role] || 'crm');
 }
 export function roomInfo(key) {
+  if(key===MODEL_STUDIO.id)return MODEL_STUDIO;
   return DEPARTMENTS.find(d=>d.id===key) || PLATFORMS.map(p=>({...p,id:'platform-'+p.id,subtitle:p.description})).find(p=>p.id===key) || DEPARTMENTS[0];
 }
 export function membersFor(key, config) {
+  if(key===MODEL_STUDIO.id)return EMPLOYEES.filter(e=>e.role==='dataresearch');
   const department=DEPARTMENTS.find(d=>d.id===key);
   return EMPLOYEES.filter(e=>department ? e.team===department.team : employeePlatform(e,config)===key.replace('platform-',''));
 }

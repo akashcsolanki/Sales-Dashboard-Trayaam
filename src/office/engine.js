@@ -3,8 +3,10 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { deskPosition, employeeStyle, boundedPosition } from "./config";
 import { obstaclesFor, canStand, findPath } from "./navigation";
+import {acquireModel,fitModel,inPlace} from "./imported-models";
+import {CHARACTER_MODELS,FURNITURE_MODELS} from "./model-catalog";
 
-// Original, procedural, interactive office. No game models, extracted assets or remote scripts.
+// Original interactive office with reviewed local image-derived assets and procedural fallbacks.
 export function createOfficeEngine(
   host,
   {
@@ -25,6 +27,7 @@ export function createOfficeEngine(
   let disposed = false,
     raf,
     selection = selectedId,
+    followId = null,
     simPlaying = playing,
     activeMode = mode,
     activeTool = tool,
@@ -53,7 +56,7 @@ export function createOfficeEngine(
   controls.target.set(0, 0, 0);
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
-  controls.minDistance = 10;
+  controls.minDistance = 3.5;
   controls.maxDistance = 78;
   controls.maxPolarAngle = Math.PI / 2.15;
   controls.minPolarAngle = 0.2;
@@ -97,7 +100,7 @@ export function createOfficeEngine(
   scene.add(fill);
   const materials = new Map(),
     geometry = new Map(),
-    textures = [];
+    textures = [], assetLeases=[];
   const mat = (color, metalness = 0, roughness = 0.65) => {
     const key = color + "|" + metalness + "|" + roughness;
     if (!materials.has(key))
@@ -161,21 +164,20 @@ export function createOfficeEngine(
     height,
     color = "#d6b779",
     background = "transparent",
+    font = "500 110px Georgia",
   ) {
     const canvas = document.createElement("canvas");
     canvas.width = 1024;
     canvas.height = 256;
     const ctx = canvas.getContext("2d");
-    if (background !== "transparent") {
-      ctx.fillStyle = background;
-      ctx.fillRect(0, 0, 1024, 256);
-    }
-    ctx.fillStyle = color;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.font = "500 110px Georgia";
-    ctx.fillText(text, 512, 128, 970);
     const texture = new THREE.CanvasTexture(canvas);
+    const draw=()=>{
+      ctx.clearRect(0,0,1024,256);
+      if(background!=="transparent"){ctx.fillStyle=background;ctx.fillRect(0,0,1024,256);}
+      ctx.fillStyle=color;ctx.textAlign="center";ctx.textBaseline="middle";ctx.font=font;
+      ctx.fillText(text,512,128,970);texture.needsUpdate=true;
+    };
+    draw();document.fonts.load(font).then(()=>{if(!disposed)draw();});
     texture.colorSpace = THREE.SRGBColorSpace;
     textures.push(texture);
     const material = new THREE.MeshBasicMaterial({
@@ -274,7 +276,7 @@ export function createOfficeEngine(
     lamp.position.set(x, 4, -11);
     scene.add(lamp);
   }
-  const wordmark = textPlane("Trayaam", 7, 1.5, "#9b793b");
+  const wordmark = textPlane("Trayaam", 7, 1.5, "#9b793b", "transparent", "600 110px Cormorant Garamond");
   wordmark.position.set(-17.69, 3.2, -5);
   wordmark.rotation.y = Math.PI / 2;
   const slogan = textPlane("YOUR BRAND. OUR DELIVERY.", 5.7, 0.5, "#6d6b64");
@@ -297,6 +299,10 @@ export function createOfficeEngine(
   emblem.position.set(-17.66, 3.1, 0);
   emblem.rotation.y = Math.PI / 2;
   scene.add(emblem);
+  // Official self-hosted emblem and typographic wordmark remain separate from generated meshes.
+  const backplate=box(12,2.1,.09,"#252726",0,4,-12.61,scene,.08);
+  const backEmblem=emblem.clone();backEmblem.position.set(-4.3,4,-12.5);backEmblem.rotation.y=0;backEmblem.scale.setScalar(.8);scene.add(backEmblem);
+  const backWordmark=textPlane("Trayaam",6,1.3,"#c9a86a","transparent","600 110px Cormorant Garamond");backWordmark.position.set(.4,4,-12.48);
   const roomAccent=config.room?.accent || "#a5a69c";
   const roomKind=config.room?.kind || "lab";
   // Layered textiles and low architectural elements define each department.
@@ -312,7 +318,7 @@ export function createOfficeEngine(
     }
   }
   const roomSign=textPlane(config.room?.name || "THE DISCOVERY LAB",10,1,"#6a5840");
-  roomSign.position.set(-2,4.4,-12.65);
+  roomSign.position.set(-2,2.55,-12.63);
   // Suspended linear pendants above the work zones, kept high enough for clear sightlines.
   for(const x of [-10,2]) {
     box(6,.12,.35,"#514c42",x,5.5,-3);
@@ -322,15 +328,28 @@ export function createOfficeEngine(
   for (let x = -15; x < 10; x += 0.3)
     box(0.015, 0.01, 17.6, "#aaa99e", x, 0.09, -1.5, scene, 0).castShadow =
       false;
+  function installFurniture(parent,entry,fallback,fit,rotation=0) {
+    if(!entry)return;
+    const lease=acquireModel(entry.url);assetLeases.push(lease);
+    lease.ready.then(({scene:asset})=>{
+      if(disposed)return;
+      const furniture=fitModel(asset,fit);furniture.rotation.y=rotation;
+      fallback.visible=false;parent.add(furniture);
+      let ancestor=parent;while(ancestor&&!ancestor.userData.objectId)ancestor=ancestor.parent;
+      const objectId=ancestor?.userData.objectId;
+      if(objectId)asset.traverse(o=>{if(o.isMesh){o.userData.objectId=objectId;pickables.push(o);}});
+    }).catch(e=>console.error('Furniture model could not load:',e.message));
+  }
   function desk(x, z, parent = scene, color = "#bca080") {
     const g = new THREE.Group();
     parent.add(g);
     g.position.set(x, 0, z);
-    box(3.6, 0.16, 1.75, color, 0, 1.35, 0, g, 0.08);
-    box(3.3, 0.06, 1.4, "#55595a", 0, 1.23, 0, g);
+    const shell=new THREE.Group();g.add(shell);
+    box(3.6, 0.16, 1.75, color, 0, 1.35, 0, shell, 0.08);
+    box(3.3, 0.06, 1.4, "#55595a", 0, 1.23, 0, shell);
     for (const xx of [-1.5, 1.5]) {
-      box(0.07, 1.24, 0.9, "#414747", xx, 0.62, 0, g);
-      box(0.6, 0.07, 1.3, "#414747", xx, 0.08, 0, g);
+      box(0.07, 1.24, 0.9, "#414747", xx, 0.62, 0, shell);
+      box(0.6, 0.07, 1.3, "#414747", xx, 0.08, 0, shell);
     }
     box(1.45, 0.85, 0.08, "#272e31", -0.12, 2.02, -0.36, g, 0.06);
     const screen = box(
@@ -371,21 +390,24 @@ export function createOfficeEngine(
     box(0.4, 0.03, 0.55, "#d9d4c6", -1.26, 1.48, 0.25, g);
     box(0.18, 0.025, 0.33, "#282e31", -1.2, 1.51, 0.28, g);
     chair(0, 1.5, g);
+    installFurniture(g,FURNITURE_MODELS.desk,shell,{width:3.6});
     return g;
   }
   function chair(x, z, parent) {
     const g = new THREE.Group();
     g.position.set(x, 0, z);
     parent.add(g);
-    cylinder(0.06, 0.09, 0.65, "#606965", 0, 0.4, 0, g);
+    const shell=new THREE.Group();g.add(shell);
+    cylinder(0.06, 0.09, 0.65, "#606965", 0, 0.4, 0, shell);
     for (let i = 0; i < 5; i++) {
-      const leg = box(0.07, 0.05, 0.7, "#525c59", 0, 0.1, 0, g);
+      const leg = box(0.07, 0.05, 0.7, "#525c59", 0, 0.1, 0, shell);
       leg.rotation.y = (i * Math.PI) / 2.5;
     }
-    box(0.85, 0.18, 0.85, "#68766f", 0, 0.85, 0, g, 0.12);
-    box(0.85, 1, 0.17, "#718078", 0, 1.35, 0.38, g, 0.12);
+    box(0.85, 0.18, 0.85, "#68766f", 0, 0.85, 0, shell, 0.12);
+    box(0.85, 1, 0.17, "#718078", 0, 1.35, 0.38, shell, 0.12);
     for (const side of [-0.48, 0.48])
-      box(0.09, 0.1, 0.6, "#596760", side, 1.1, 0, g);
+      box(0.09, 0.1, 0.6, "#596760", side, 1.1, 0, shell);
+    installFurniture(g,FURNITURE_MODELS.chair,shell,{height:1.85},Math.PI);
     return g;
   }
   const obstacles = obstaclesFor(employees, config.objects || [], deskPosition);
@@ -520,8 +542,8 @@ export function createOfficeEngine(
     );
     const station = assignedDesk || deskPosition(index);
     const pos = config.positions?.[employee.id] || {
-      x: station.x - Math.sin(assignedDesk?.rotation || 0) * 2.05,
-      z: station.z + Math.cos(assignedDesk?.rotation || 0) * 2.05,
+      x: station.x - Math.sin(assignedDesk?.rotation || 0) * (CHARACTER_MODELS[employee.id]?3.3:2.05),
+      z: station.z + Math.cos(assignedDesk?.rotation || 0) * (CHARACTER_MODELS[employee.id]?3.3:2.05),
     };
     root.position.set(pos.x, 0.1, pos.z);
     root.rotation.y = Math.PI;
@@ -540,6 +562,26 @@ export function createOfficeEngine(
       target: null,
       phase: index * 0.6,
     });
+    const catalog=CHARACTER_MODELS[employee.id];
+    if(catalog) {
+      const lease=acquireModel(catalog.url);assetLeases.push(lease);
+      const motionLease=catalog.motion?acquireModel(catalog.motion):null;
+      if(motionLease)assetLeases.push(motionLease);
+      Promise.all([lease.ready,motionLease?.ready]).then(([{scene:asset,animations},motion])=>{
+        if(disposed)return;
+        const figure=fitModel(asset,{height:catalog.height});
+        const actor=avatars.get(employee.id);
+        actor.body.visible=false;root.scale.set(1,1,1);root.add(figure);
+        asset.traverse(o=>{if(o.isMesh){o.userData.employeeId=employee.id;pickables.push(o);}});
+        // Matching Mixamo skeletons share rotations; keep each character's own bone lengths and root height.
+        const clips=(motion?motion.animations.map(c=>new THREE.AnimationClip('Walking',c.duration,c.tracks.filter(t=>t.name.endsWith('.quaternion')).map(t=>t.clone()))):animations).map(inPlace), mixer=new THREE.AnimationMixer(asset);
+        const idle=clips.find(c=>/idle|stand|breath/i.test(c.name));
+        const walk=clips.find(c=>/walking_woman|walking woman/i.test(c.name)) || clips.find(c=>/walk|running/i.test(c.name));
+        actor.model={mixer,root:asset,idle:idle?mixer.clipAction(idle):null,walk:walk?mixer.clipAction(walk):null,state:null};
+        // A walking clip's first frame is also a safe neutral pose if no idle was exported.
+        if(!idle&&walk){actor.model.walk.play();actor.model.walk.paused=true;mixer.update(0);}
+      }).catch(e=>console.error('Character model could not load:',e.message));
+    }
   }
   employees.forEach((e, i) => {
     avatar(e, i);
@@ -606,16 +648,18 @@ export function createOfficeEngine(
       }
     }
     if (obj.type === "sofa") {
-      box(3.5, 0.55, 1.4, color, 0, 0.65, 0, group, 0.2);
-      box(3.5, 0.9, 0.32, color, 0, 1.12, -0.6, group, 0.15);
+      const sofaShell=new THREE.Group();group.add(sofaShell);
+      box(3.5, 0.55, 1.4, color, 0, 0.65, 0, sofaShell, 0.2);
+      box(3.5, 0.9, 0.32, color, 0, 1.12, -0.6, sofaShell, 0.15);
       for (const x of [-1.65, 1.65]) {
-        box(0.3, 0.7, 1.5, color, x, 0.9, 0, group, 0.12);
-        box(0.13, 0.3, 0.13, "#ad935e", x, 0.2, 0.5, group);
+        box(0.3, 0.7, 1.5, color, x, 0.9, 0, sofaShell, 0.12);
+        box(0.13, 0.3, 0.13, "#ad935e", x, 0.2, 0.5, sofaShell);
       }
       for (const x of [-1.05, 0, 1.05]) {
-        box(0.98, 0.22, 1.1, color, x, 1, 0, group, 0.12);
-        box(0.64, 0.55, 0.18, "#d9bc7d", x, 1.4, -0.38, group, 0.1);
+        box(0.98, 0.22, 1.1, color, x, 1, 0, sofaShell, 0.12);
+        box(0.64, 0.55, 0.18, "#d9bc7d", x, 1.4, -0.38, sofaShell, 0.1);
       }
+      installFurniture(group,FURNITURE_MODELS.sofa,sofaShell,{width:3.5});
     }
     if (obj.type === "table") {
       const boardroom = obj.id === "table-board";
@@ -819,6 +863,7 @@ export function createOfficeEngine(
       t = clock.elapsedTime;
     controls.update();
     for (const [id, a] of avatars) {
+      const before=a.root.position.clone();
       let moving = false;
       if (id === selection && activeMode === "live" && simPlaying) {
         const dx =
@@ -864,6 +909,16 @@ export function createOfficeEngine(
           onMove(id, { x: a.root.position.x, z: a.root.position.z });
         }
         if (moving) a.changed = true;
+      }
+      if(followId===id&&moving){const delta=a.root.position.clone().sub(before);camera.position.add(delta);controls.target.add(delta);}
+      if(a.model){
+        const {mixer,idle,walk}=a.model, state=moving?'walk':'idle';
+        if(a.model.state!==state){
+          if(idle&&walk){const to=moving?walk:idle,from=moving?idle:walk;to.reset().fadeIn(.18).play();from.fadeOut(.18);}
+          else if(walk){walk.play();walk.paused=!moving;if(!moving){walk.time=0;mixer.update(0);}}
+          a.model.state=state;
+        }
+        if(simPlaying)mixer.update(dt);
       }
       a.legs.forEach(
         (leg, i) =>
@@ -937,6 +992,7 @@ export function createOfficeEngine(
       camera.position.copy(controls.target).add(direction);
     },
     reset() {
+      followId=null;
       camera.position.set(34, 31, 40);
       controls.target.set(0, 0, 0);
     },
@@ -947,16 +1003,18 @@ export function createOfficeEngine(
           .clone()
           .sub(controls.target)
           .normalize()
-          .multiplyScalar(12);
+          .multiplyScalar(5.8);
         controls.target
           .copy(avatar.root.position)
           .add(new THREE.Vector3(0, 1, 0));
         camera.position.copy(controls.target).add(offset);
         avatar.root.rotation.y=Math.atan2(offset.x,offset.z);
+        followId=id;
         controls.update();renderer.render(scene,camera);
       }
     },
     view(type) {
+      followId=null;
       if (type === "top") {
         camera.position.set(0, 50, 0.01);
         controls.target.set(0, 0, 0);
@@ -973,12 +1031,14 @@ export function createOfficeEngine(
       renderer.domElement.removeEventListener("keyup", keyUp);
       renderer.domElement.removeEventListener("blur", blur);
       scene.traverse((o) => {
-        if (o.isMesh) {
+        if (o.isMesh && !o.userData.importedAsset) {
           o.geometry?.dispose();
           if (![...materials.values()].includes(o.material))
             o.material?.dispose();
         }
       });
+      for(const a of avatars.values())if(a.model){a.model.mixer.stopAllAction();a.model.mixer.uncacheRoot(a.model.root);}
+      assetLeases.forEach(l=>l.release());
       materials.forEach((m) => m.dispose());
       textures.forEach((t) => t.dispose());
       renderer.dispose();

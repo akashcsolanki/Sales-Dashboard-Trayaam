@@ -11,11 +11,11 @@ export const TEAMS = [
 ];
 export const SKINS = [
   "#e5b58f",
-  "#b77d56",
-  "#794f39",
+  "#c79572",
+  "#d1a77f",
   "#f1d0b2",
-  "#a86942",
-  "#53372e",
+  "#b98e6e",
+  "#e5c5aa",
 ];
 export const OUTFITS = [
   "#253846",

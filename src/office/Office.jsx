@@ -45,10 +45,11 @@ import {
   actualStatus,
 } from "./config";
 import { portraitStyle } from "./identities";
-import { DEPARTMENTS, PLATFORMS, roomInfo, membersFor, makeRoom, employeePlatform } from "./workspaces";
+import { DEPARTMENTS, PLATFORMS, MODEL_STUDIO, roomInfo, membersFor, makeRoom, employeePlatform } from "./workspaces";
+import { CHARACTER_MODELS, CHARACTER_REFERENCES } from "./model-catalog";
 import "./office.css";
 function Portrait({employee, large=false}) {
-  return <span role="img" aria-label={employee.name + " character reference"} className={"cast-portrait"+(large?" large":"")} style={portraitStyle(employee.portrait)} />;
+  return <span role="img" aria-label={employee.name + " character reference"} className={"cast-portrait"+(large?" large":"")} style={CHARACTER_REFERENCES[employee.id]?{backgroundImage:`url(${CHARACTER_REFERENCES[employee.id]})`,backgroundSize:"300% auto",backgroundPosition:"50% 0%"}:portraitStyle(employee.portrait)} />;
 }
 const catalog = [
   ["select", "Select & move", MousePointer2],
@@ -92,7 +93,7 @@ function Swatches({ label, options, value, onChange }) {
   );
 }
 export default function Office({ tasks, create, changeTask }) {
-  const [roomKey, setRoomKey] = useState("dept-data-lab"),
+  const [roomKey, setRoomKey] = useState("studio-reference"),
     [directory, setDirectory] = useState("departments"),
     [showReferences, setShowReferences] = useState(false),
     [allTasks, setAllTasks] = useState(false),
@@ -325,7 +326,7 @@ export default function Office({ tasks, create, changeTask }) {
   return (
     <div className="office-v2">
       <section className="hq-directory" aria-label="Office departments and platforms">
-        <div className="hq-directory-heading"><div><span className="studio-tag">A PLACE FOR EVERY SPECIALTY</span><h2>One company. Distinct worlds.</h2><p>Meet the people, enter their department, or organize the floor by platform.</p></div><button className="studio-button" onClick={()=>setShowReferences(!showReferences)}><Palette size={15}/>{showReferences?"Close art direction":"Character & office references"}</button></div>
+        <div className="hq-directory-heading"><div><span className="studio-tag">A PLACE FOR EVERY SPECIALTY</span><h2>One company. Distinct worlds.</h2><p>Meet the people, enter their department, or organize the floor by platform.</p></div><div className="reference-studio-actions"><button className="studio-button gold" onClick={()=>changeRoom(MODEL_STUDIO.id,true)}>Enter the reference studio <ArrowUpRight size={14}/></button><button className="studio-button" onClick={()=>setShowReferences(!showReferences)}><Palette size={15}/>{showReferences?"Close art direction":"Character & office references"}</button></div></div>
         <div className="hq-directory-tabs" role="group" aria-label="Browse office by"><button aria-pressed={directory==='departments'} onClick={()=>setDirectory('departments')}><Building2 size={15}/>Departments <span>08</span></button><button aria-pressed={directory==='platforms'} onClick={()=>setDirectory('platforms')}><Monitor size={15}/>Platforms <span>08</span></button><small>128 unique colleagues · 32 specialties</small></div>
         <div className="hq-room-grid">{(directory==='departments'?DEPARTMENTS:PLATFORMS).map((entry,i)=>{
           const key=directory==='departments'?entry.id:'platform-'+entry.id;
@@ -334,7 +335,7 @@ export default function Office({ tasks, create, changeTask }) {
           return <button key={key} aria-label={'Enter '+(entry.team||entry.name)} aria-pressed={roomKey===key} onClick={()=>changeRoom(key,true)} className="hq-room-card" style={{'--room-accent':entry.accent}}><div className={'room-miniature '+entry.kind}><i/><i/><i/><i/><span>{String(i+1).padStart(2,'0')}</span></div><strong>{entry.team||entry.name}</strong><small>{entry.subtitle||entry.description}</small><div className="room-card-people">{members.slice(0,3).map(e=><Portrait key={e.id} employee={e}/>)}<span>{members.length} people</span><ArrowUpRight size={15}/></div><footer><span>{available} available</span><span>{workload.length} tasks</span></footer></button>
         })}</div>
       </section>
-      {showReferences&&<section className="art-direction"><div><span className="studio-tag">GPT IMAGE GENERATION · ORIGINAL ART DIRECTION</span><h3>A cast of individuals.</h3><p>128 fictional identities. 96 women and 32 men. Generated reference portraits guide the cast; live wardrobe and appearance edits apply to the 3D characters.</p></div><img className="office-concept" src="/office/office-concept.webp" alt="Generated reference showing distinct research, communication, client and creative office zones"/><div className="cast-reference-grid">{Array.from({length:8},(_,i)=><figure key={i}><img loading="lazy" src={'/office/cast-'+(i+1)+'.webp'} alt={'Character reference atlas '+(i+1)+', 16 distinct fictional professionals'}/><figcaption>CAST {String(i+1).padStart(2,'0')} · {i*16+1}—{i*16+16}</figcaption></figure>)}</div></section>}
+      {showReferences&&<section className="art-direction"><div><span className="studio-tag">GPT IMAGE GENERATION · ORIGINAL ART DIRECTION</span><h3>A cast of individuals.</h3><p>128 fictional identities. 96 women and 32 men. Generated reference portraits guide the cast; live wardrobe and appearance edits apply to the 3D characters.</p></div><img className="office-concept" src="/office/office-concept.webp" alt="Generated reference showing distinct research, communication, client and creative office zones"/><div className="cast-reference-grid">{Array.from({length:8},(_,i)=><figure key={i}><img loading="lazy" src={'/office/cast-v2-'+(i+1)+'.webp'} alt={'Character reference atlas '+(i+1)+', 16 distinct fictional professionals'}/><figcaption>CAST {String(i+1).padStart(2,'0')} · {i*16+1}—{i*16+16}</figcaption></figure>)}</div></section>}
       <div className="studio-topline" ref={roomAnchor}>
         <div className="studio-location">
           <span className="studio-tag">TRAYAAM HEADQUARTERS</span>
@@ -388,6 +389,7 @@ export default function Office({ tasks, create, changeTask }) {
             value={roomKey}
             onChange={(e) => changeRoom(e.target.value)}
           >
+            <option value={MODEL_STUDIO.id}>Reference studio</option>
             <optgroup label="Departments">{DEPARTMENTS.map(d=><option key={d.id} value={d.id}>{d.team}</option>)}</optgroup>
             <optgroup label="Platforms">{PLATFORMS.map(p=><option key={p.id} value={'platform-'+p.id}>{p.name}</option>)}</optgroup>
           </select>
@@ -746,7 +748,7 @@ export default function Office({ tasks, create, changeTask }) {
                   Customize
                 </button>
               </div>
-              {panel === "style" ? (
+              {panel === "style" && CHARACTER_MODELS[selected.id] ? <div className="model-look-card"><h4>Reference-matched look</h4><p>This character now uses its image-derived 3D wardrobe and hairstyle. Additional outfit and hair variants will appear here as they are created.</p><strong>{CHARACTER_MODELS[selected.id].rigged ? "Rigged character · animated movement" : "Textured model · articulation pending"}</strong><small>Name, movement, platform and task assignment remain editable.</small></div> : panel === "style" ? (
                 <div className="character-editor">
                   <Swatches
                     label="Skin tone"
@@ -912,6 +914,7 @@ export default function Office({ tasks, create, changeTask }) {
           </div>
         </section>
       )}
+      <p className="model-attribution">Image-derived 3D assets created with <a href="https://www.meshy.ai/" target="_blank" rel="noreferrer">Meshy</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a> · <a href="/office/models/CREDITS.md" target="_blank" rel="noreferrer">Asset credits</a></p>
       <section className="studio-task-board">
         <div className="studio-section-heading">
           <div>
