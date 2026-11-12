@@ -9,7 +9,7 @@ Requested 4 November 2026 by Akash Solanki. Build an operational outreach dashbo
 - Cloudflare account: existing selected account; do not modify unrelated projects or ERP.
 - Pages: `trayaam-sales-office`, production branch `main`.
 - D1: `trayaam-sales-office`, binding `DB`, ID in wrangler.jsonc.
-- Expected production host: https://trayaam-sales-office.pages.dev/ (verify before reporting live).
+- Primary production host: https://sales.trayaam.com/ (custom domain activated 12 November 2026). Cloudflare alias: https://trayaam-sales-office.pages.dev/. Verify the primary host before reporting live.
 - Authentication: high-entropy workspace password; only its SHA-256 hash in Pages secret WORKSPACE_PASSWORD_HASH. Hashed opaque 12-hour session IDs in D1; HttpOnly/Secure/SameSite Strict cookie. Password is in ignored `.private/access.txt`, never publish it.
 
 ## Source hierarchy

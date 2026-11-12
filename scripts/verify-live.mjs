@@ -1,5 +1,5 @@
 import{readFileSync,writeFileSync}from'node:fs';import assert from'node:assert/strict';
-const base=process.argv[2]||'https://trayaam-sales-office.pages.dev';
+const base=process.argv[2]||'https://sales.trayaam.com';
 const anonymous=await fetch(base+'/api/snapshot');assert.equal(anonymous.status,401);
 const password=readFileSync('.private/access.txt','utf8').trim();
 const login=await fetch(base+'/api/login',{method:'POST',headers:{Origin:base,'Content-Type':'application/json'},body:JSON.stringify({password})});assert.equal(login.status,200);

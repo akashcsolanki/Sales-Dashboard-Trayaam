@@ -1,6 +1,8 @@
 # Trayaam Sales Office
 
-Responsive private outreach workspace: prospects, pipeline, hiring signals, globe, assets, analytics and a specialist Sales Office with 76 seats.
+Responsive private outreach workspace: prospects, pipeline, hiring signals, globe, assets, analytics and a specialist Sales Office with 128 seats.
+
+Production: [sales.trayaam.com](https://sales.trayaam.com/). Sign in with the workspace password. Source is maintained in this repository; Cloudflare Pages deployments currently use Wrangler direct upload rather than automatic GitHub builds.
 
 React · Vite · GSAP · WebGL gradient · COBE · Cloudflare Pages Functions · D1.
 
